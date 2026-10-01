@@ -112,12 +112,14 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
 
 <script>
 // ===== Firebase-Konfiguration eintragen (identisch in index.html) =====
-const firebaseConfig={
-  apiKey:"HIER_EINTRAGEN",
-  authDomain:"PROJEKT.firebaseapp.com",
-  databaseURL:"https://PROJEKT-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId:"PROJEKT",
-  appId:"HIER_EINTRAGEN"
+const firebaseConfig = {
+  apiKey: "AIzaSyBY_6OqGoHDyJB4SaCD_oj4qMW3O-jzNSE",
+  authDomain: "vokabeltests.firebaseapp.com",
+  databaseURL: "https://vokabeltests-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "vokabeltests",
+  storageBucket: "vokabeltests.firebasestorage.app",
+  messagingSenderId: "238017724845",
+  appId: "1:238017724845:web:b6f660616243bbce202124"
 };
 firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth(), db=firebase.database(), TS=firebase.database.ServerValue.TIMESTAMP;
