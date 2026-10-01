@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>Vokabeltest · OEM</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{--bg:#eef1f5;--card:#fff;--ink:#1c2230;--mut:#687086;--acc:#2456d6;--ok:#1e8e3e;--bad:#d93025;--kb:#d3d7de;--key:#fff;--key2:#aeb4bf}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:18px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);box-shadow:0 1px 4px #0002;z-index:2}
+header .t{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hName{color:var(--mut);font-size:16px}
+#timer{font:700 26px/1 ui-monospace,Menlo,monospace;padding:6px 12px;border-radius:10px;background:#e8eefc;color:var(--acc)}
+#timer.low{background:#fde7e5;color:var(--bad);animation:p 1s infinite}
+@keyframes p{50%{opacity:.55}}
+.hb{padding:10px 18px;border:0;border-radius:10px;background:var(--ok);color:#fff;font-family:inherit;font-size:17px;font-weight:600}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+.card{background:var(--card);border-radius:14px;padding:20px;max-width:640px;margin:0 auto 16px;box-shadow:0 1px 3px #0001}
+h1{font-size:24px;margin:0 0 12px}
+label{display:block;font-size:14px;color:var(--mut);margin:14px 0 6px}
+.field{min-height:52px;padding:12px 14px;border:2px solid #cfd5df;border-radius:10px;background:#fff;font-size:21px;white-space:pre-wrap;word-break:break-word;cursor:text}
+.field.f{border-color:var(--acc);box-shadow:0 0 0 3px #2456d633}
+[data-f=code]{text-transform:uppercase;letter-spacing:.15em}
+.caret{display:inline-block;width:2px;height:1.1em;background:var(--acc);vertical-align:text-bottom;margin-left:1px;animation:b 1s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+.ph{color:#a0a7b5;text-transform:none;letter-spacing:0}
+button.big{display:block;width:100%;margin-top:20px;padding:16px;font-family:inherit;font-size:20px;font-weight:600;border:0;border-radius:12px;background:var(--acc);color:#fff}
+button.sec{background:#e3e7ee;color:var(--ink)}
+.err{color:var(--bad);margin-top:12px;min-height:1.2em}
+.info{color:var(--mut);font-size:15px}
+.list{max-width:900px;margin:0 auto}
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) minmax(0,1.2fr);gap:12px;align-items:center;background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+.row .n{color:var(--mut);font-size:15px;text-align:right}
+.row .p{font-weight:600}
+.row.hdr{background:none;padding:0 14px 4px;margin:0;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.row.hdr .p{font-weight:600}
+.row .field{min-height:46px;padding:9px 12px}
+@media (max-width:600px){.row{grid-template-columns:28px 1fr}.row .field{grid-column:2}}
+#kb{background:var(--kb);padding:4px 4px calc(6px + env(safe-area-inset-bottom));display:none}
+#kb.on{display:block}
+.kr{display:flex;justify-content:center;gap:5px;margin:5px 0}
+.k{flex:1 1 0;max-width:78px;height:54px;border-radius:8px;background:var(--key);box-shadow:0 1px 0 #0004;display:flex;align-items:center;justify-content:center;font-size:23px}
+.k.w{flex-grow:1.6;max-width:none;background:var(--key2);font-size:19px}
+.k.sp{flex-grow:6;max-width:none}
+.k.go{background:var(--acc);color:#fff}
+.k.on1{background:#fff;color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
+.k.on2{background:var(--acc);color:#fff}
+.k.pr{background:#bfc5cf}
+.k.go.pr{background:#1a43a8}
+.done{text-align:center}
+.done .ic{font-size:64px;color:var(--ok)}
+.done .ic.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hd" hidden>
+    <div class="t" id="hTitle"></div><div id="hName"></div><div id="timer">--:--</div>
+    <button class="hb" id="btnSubmit">Abgeben</button>
+  </header>
+  <main id="main"></main>
+  <div id="kb"></div>
+</div>
+<script>
+// ===== Firebase-Konfiguration eintragen (identisch in lehrer.html) =====
+const firebaseConfig = {
+ apiKey: "AIzaSyBY_6OqGoHDyJB4SaCD_oj4qMW3O-jzNSE",
+ authDomain: "vokabeltests.firebaseapp.com",
+ databaseURL: "https://vokabeltests-default-rtdb.europe-west1.firebasedatabase.app",
+ projectId: "vokabeltests",
+ storageBucket: "vokabeltests.firebasestorage.app",
+ messagingSenderId: "238017724845",
+ appId: "1:238017724845:web:b6f660616243bbce202124"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database(), TS=firebase.database.ServerValue.TIMESTAMP;
+let off=0; db.ref('.info/serverTimeOffset').on('value',s=>off=s.val()||0);
+const now=()=>Date.now()+off;
+const $=id=>document.getElementById(id);
+const main=$('main');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const K='vt_run', MAX=80;
+const fmt=s=>{s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+let run=null, screen='', fieldOrder=[], tmr=null, syncT=null, statusRef=null;
+const vals={}; let focus=null, shift=0, lastShift=0;
+const save=()=>{if(run)LS.set(K,run)};
+
+// ===== Bildschirmtastatur =====
+// Englische Tastatur (QWERTY), keine Umlaute
+const ROWS=[
+ ['1','2','3','4','5','6','7','8','9','0','⌫'],
+ ['q','w','e','r','t','y','u','i','o','p'],
+ ['a','s','d','f','g','h','j','k','l',"'"],
+ ['⇧','z','x','c','v','b','n','m','-','⇧'],
+ ['(',')',',','.','?','!','/',' ','↵']
+];
+const ALLOWED=new Set(ROWS.flat().filter(k=>k.length===1));
+function buildKb(){
+  $('kb').innerHTML=ROWS.map(r=>'<div class="kr">'+r.map(k=>{
+    const cls=k==='⌫'||k==='⇧'?'k w':k===' '?'k sp':k==='↵'?'k w go':'k';
+    const lab=k===' '?'':k==='↵'?'weiter ↵':k;
+    return `<div class="${cls}" data-k="${esc(k)}">${esc(lab)}</div>`;
+  }).join('')+'</div>').join('');
+}
+function renderShift(){
+  document.querySelectorAll('#kb .k').forEach(el=>{
+    const k=el.dataset.k;
+    if(k==='⇧'){el.classList.toggle('on1',shift===1);el.classList.toggle('on2',shift===2)}
+    else if(/^[a-z]$/.test(k)) el.textContent=shift?k.toUpperCase():k;
+  });
+}
+function press(k){
+  if(!focus) return;
+  if(k==='⇧'){
+    const t=Date.now(), dbl=t-lastShift<350;
+    shift = shift===0 ? 1 : shift===1 ? (dbl?2:0) : 0;
+    lastShift=t; renderShift(); return;
+  }
+  if(k==='↵'){next();return}
+  let v=vals[focus]||'';
+  if(k==='⌫') v=Array.from(v).slice(0,-1).join('');
+  else{
+    let c=k; if(shift) c=c.toUpperCase();
+    if(Array.from(v).length>=MAX) return;
+    v+=c;
+    if(shift===1){shift=0;renderShift()}
+  }
+  vals[focus]=v; renderField(focus); onInput(focus);
+}
+let rep=null,repT=null;
+const stopRep=()=>{clearTimeout(repT);clearInterval(rep);rep=null};
+$('kb').addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.k'); if(!el) return;
+  e.preventDefault();
+  el.classList.add('pr'); setTimeout(()=>el.classList.remove('pr'),120);
+  const k=el.dataset.k; press(k);
+  if(k==='⌫') repT=setTimeout(()=>rep=setInterval(()=>press('⌫'),70),450);
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('kb').addEventListener(ev,stopRep));
+// Hardware-Tastatur (zum Testen am Laptop)
+document.addEventListener('keydown',e=>{
+  if(!focus||e.metaKey||(e.ctrlKey&&!e.altKey)) return;
+  if(e.key==='Backspace'){e.preventDefault();press('⌫')}
+  else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();next()}
+  else if(e.key.length===1&&ALLOWED.has(e.key.toLowerCase())){e.preventDefault();const s=shift;shift=0;press(e.key);shift=s===1?0:s;renderShift()}
+});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('gesturestart',e=>e.preventDefault());
+
+// ===== Felder =====
+const fld=id=>document.querySelector(`[data-f="${id}"]`);
+function renderField(id){
+  const el=fld(id); if(!el) return;
+  const v=vals[id]||'', f=focus===id;
+  el.classList.toggle('f',f);
+  el.innerHTML=(v||f)?esc(v)+(f?'<span class="caret"></span>':''):`<span class="ph">${esc(el.dataset.ph||'')}</span>`;
+}
+function setFocus(id){
+  const old=focus; focus=id;
+  if(old) renderField(old);
+  if(id){renderField(id);const el=fld(id);if(el)el.scrollIntoView({block:'nearest',behavior:'smooth'});$('kb').classList.add('on')}
+}
+function kbOff(){focus=null;shift=0;renderShift();$('kb').classList.remove('on')}
+function next(){
+  const i=fieldOrder.indexOf(focus); if(i<0) return;
+  if(screen==='login'&&i===fieldOrder.length-1) return doLogin();
+  setFocus(fieldOrder[(i+1)%fieldOrder.length]);
+}
+main.addEventListener('click',e=>{const f=e.target.closest('.field');if(f)setFocus(f.dataset.f)});
+function onInput(id){
+  if(screen!=='test'||!run||run.submitted) return;
+  run.answers[+id.slice(1)]=vals[id]; save();
+  clearTimeout(syncT); syncT=setTimeout(sync,1200);
+}
+function sync(){
+  if(!run||run.submitted) return;
+  db.ref(`vt/subs/${run.code}/${run.subId}`).update({answers:run.answers,blur:run.blur}).catch(()=>{});
+}
+const err=m=>{const e=$('err');if(e)e.textContent=m};
+
+// ===== Screens =====
+function showLogin(msg){
+  screen='login'; $('hd').hidden=true;
+  main.innerHTML=`<div class="card"><h1>Vokabeltest</h1>
+    <label>Test-Code</label><div class="field" data-f="code" data-ph="Code von der Tafel"></div>
+    <label>Vorname</label><div class="field" data-f="name" data-ph="dein Vorname"></div>
+    <button class="big" id="go">Weiter</button><div class="err" id="err">${esc(msg||'')}</div>
+    <p class="info">Bitte nur mit der Tastatur unten tippen.</p></div>`;
+  fieldOrder=['code','name']; fieldOrder.forEach(renderField);
+  setFocus(vals.code?'name':'code');
+  $('go').onclick=doLogin;
+}
+async function doLogin(){
+  const code=(vals.code||'').trim().toUpperCase(), name=(vals.name||'').trim().replace(/\s+/g,' ');
+  if(!/^[A-Z0-9]{3,8}$/.test(code)) return err('Bitte gültigen Code eingeben.');
+  if(!name) return err('Bitte Vornamen eingeben.');
+  err('Suche Test …');
+  let s; try{s=await db.ref('vt/tests/'+code).get()}catch(e){return err('Keine Verbindung zum Server.')}
+  if(!s.exists()) return err('Diesen Code gibt es nicht.');
+  const t=s.val();
+  if(t.status!=='open') return err('Der Test ist gerade nicht freigegeben.');
+  showReady(code,name,t);
+}
+function showReady(code,name,t){
+  screen='ready'; kbOff();
+  const n=(t.prompts||[]).length;
+  main.innerHTML=`<div class="card"><h1>Hallo ${esc(name)}!</h1>
+    <p><b>${esc(t.title)}</b><br><span class="info">${n} Vokabeln · ${fmt(t.duration)} Minuten</span></p>
+    <p class="info">Die Zeit läuft ab „Start“. Wenn sie abgelaufen ist, wird dein Test automatisch abgegeben.<br>Übersetze die deutschen Wörter ins Englische.<br>Groß- und Kleinschreibung zählt.</p>
+    <button class="big" id="st">Start</button><button class="big sec" id="bk">Zurück</button><div class="err" id="err"></div></div>`;
+  $('bk').onclick=()=>showLogin();
+  $('st').onclick=()=>{$('st').disabled=true;err('Starte …');start(code,name,t)};
+}
+async function start(code,name,t){
+  const n=t.prompts.length, order=[...Array(n).keys()];
+  if(t.shuffle) for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+  const ref=db.ref('vt/subs/'+code).push();
+  run={code,name,subId:ref.key,order,answers:Array(n).fill(''),deadline:now()+t.duration*1000,blur:0,
+       submitted:false,confirmed:false,auto:false,title:t.title,prompts:t.prompts};
+  save();
+  try{await ref.set({name,status:'running',startedAt:TS,order,answers:run.answers,blur:0})}
+  catch(e){run=null;LS.del(K);return showLogin('Start nicht möglich ('+(e.code||e.message)+').')}
+  showTest();
+}
+function showTest(){
+  screen='test'; $('hd').hidden=false;
+  $('hTitle').textContent=run.title; $('hName').textContent=run.name;
+  main.innerHTML='<div class="list"><div class="row hdr"><div></div><div class="p">Deutsch</div><div>Englisch</div></div>'+run.order.map((i,p)=>
+    `<div class="row"><div class="n">${p+1}</div><div class="p">${esc(run.prompts[i])}</div><div class="field" data-f="a${i}"></div></div>`
+  ).join('')+'<button class="big" id="sub2">Abgeben</button></div>';
+  run.order.forEach(i=>vals['a'+i]=run.answers[i]||'');
+  fieldOrder=run.order.map(i=>'a'+i); fieldOrder.forEach(renderField);
+  setFocus(fieldOrder.find(f=>!vals[f])||fieldOrder[0]);
+  $('btnSubmit').onclick=$('sub2').onclick=askSubmit;
+  clearInterval(tmr); tmr=setInterval(tick,250); tick();
+  if(statusRef) statusRef.off();
+  statusRef=db.ref(`vt/tests/${run.code}/status`);
+  statusRef.on('value',s=>{if(run&&!run.submitted&&s.val()!=='open')submit(true,'beendet')});
+}
+function tick(){
+  if(!run||run.submitted) return;
+  const r=run.deadline-now(), s=Math.ceil(r/1000);
+  $('timer').textContent=fmt(s); $('timer').classList.toggle('low',s<=60);
+  if(r<=0) submit(true,'zeit');
+}
+function askSubmit(){
+  const empty=run.answers.filter(a=>!a.trim()).length;
+  if(confirm('Test jetzt abgeben?'+(empty?`\n${empty} Feld(er) sind noch leer.`:''))) submit(false,'');
+}
+async function submit(auto,why){
+  if(!run||run.submitted) return;
+  run.submitted=true; run.auto=!!auto; save();
+  clearInterval(tmr); clearTimeout(syncT); if(statusRef){statusRef.off();statusRef=null}
+  kbOff(); $('hd').hidden=true; screen='sending';
+  const msg=why==='zeit'?'Die Zeit ist abgelaufen.':why==='beendet'?'Der Test wurde beendet.':'';
+  main.innerHTML=`<div class="card done"><div class="ic">⏳</div><h1>Wird übermittelt …</h1><p class="info">${msg}</p><p class="info">Bitte die Seite nicht schließen.</p></div>`;
+  try{
+    await db.ref(`vt/subs/${run.code}/${run.subId}`).update({answers:run.answers,blur:run.blur,status:'submitted',submittedAt:TS,auto:!!auto});
+    run.confirmed=true; save(); showDone();
+  }catch(e){
+    main.innerHTML=`<div class="card done"><div class="ic bad">✗</div><h1>Abgabe nicht möglich</h1>
+      <p class="info">Bitte sag deiner Lehrkraft Bescheid. Deine Antworten bis kurz vor Schluss sind gespeichert.<br>(${esc(e.code||e.message)})</p>
+      <button class="big sec" id="nx">Nächste Person</button></div>`;
+    $('nx').onclick=resetForNext;
+  }
+}
+function showDone(){
+  screen='done'; kbOff(); $('hd').hidden=true;
+  main.innerHTML=`<div class="card done"><div class="ic">✓</div><h1>Abgegeben</h1><p>Danke, ${esc(run.name)}!</p>
+    <p class="info">${esc(run.title)}</p><button class="big sec" id="nx">Nächste Person</button></div>`;
+  $('nx').onclick=resetForNext;
+}
+function resetForNext(){
+  if(!confirm('Neue Anmeldung starten?')) return;
+  const c=run?run.code:''; LS.del(K); run=null;
+  for(const k in vals) delete vals[k]; vals.code=c; showLogin();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&screen==='test'&&run&&!run.submitted){run.blur++;save();sync()}
+});
+
+// ===== Start =====
+buildKb();
+const saved=LS.get(K);
+if(saved&&saved.subId){
+  run=saved;
+  if(run.confirmed) showDone();
+  else if(run.submitted){run.submitted=false;submit(run.auto,'')}
+  else showTest();
+} else showLogin();
+</script>
+</body>
+</html>
