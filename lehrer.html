@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vokabeltests – Lehrer · OEM</title>
+<title>Vokabeltests – Lehrkräfte · CJD Königswinter</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -51,7 +51,16 @@ h3{margin:22px 0 8px}
 .ed label.chk{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px}
 .ed label.chk input{width:auto}
 .ed select{font:inherit;padding:7px 10px;border:1px solid #cfd5df;border-radius:8px;background:#fff;margin-left:8px}
-.g3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px}
+@media (max-width:700px){.g3{grid-template-columns:1fr 1fr}}
+header .logo{height:30px;width:auto}
+.brand{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;margin-bottom:8px}
+.brand .logo{height:56px;width:auto;max-width:90%}
+.brand h2{margin-top:6px}
+.ovl .logo{height:70px;width:auto;margin-bottom:10px}
+.pgh{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px}
+.pgh .logo{height:42px;width:auto}
+.pgh .r{text-align:right;font-size:10pt}
 .g3 label{margin-top:0}
 code{background:#f1f3f7;padding:1px 5px;border-radius:4px}
 .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
@@ -66,6 +75,8 @@ table.res{border-collapse:collapse;width:100%}
 .st{font-size:13px;padding:2px 8px;border-radius:99px}
 .st.ok{background:#dff3e4;color:var(--ok)}.st.run{background:#e8eefc;color:var(--acc)}.st.bad{background:#fde7e5;color:var(--bad)}
 .warn{color:var(--bad);font-weight:600}
+.pin{padding:4px 10px;border-radius:8px;background:#fff4e0;color:#8a5a00;font-size:14px}
+.pin b{font:700 17px ui-monospace,Menlo,monospace;letter-spacing:.1em;margin-left:4px}
 #det{margin-top:8px}
 .dh{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .dh h3{margin:16px 0 8px;flex:1}
@@ -94,14 +105,14 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
 </head>
 <body>
 <div id="login" class="center"><form class="card" id="lf">
-  <h2>Vokabeltests · OEM</h2>
+  <div class="brand"><img class="logo" src="logo.svg" alt="CJD Königswinter"><div class="mut">CJD Königswinter</div><h2>Vokabeltests</h2></div>
   <label>E-Mail</label><input id="le" type="email" autocomplete="username">
   <label>Passwort</label><input id="lp" type="password" autocomplete="current-password">
   <button class="green" type="submit">Anmelden</button><div class="err" id="lerr"></div>
 </form></div>
 
 <div id="dash" hidden>
-  <header><b>Vokabeltests · OEM</b><span class="sp"></span><span class="mut" id="who"></span><button id="logout">Abmelden</button></header>
+  <header><img class="logo" src="logo.svg" alt="CJD Königswinter"><b>Vokabeltests</b><span class="mut">CJD Königswinter</span><span class="sp"></span><span class="mut" id="who"></span><button id="logout">Abmelden</button></header>
   <div class="wrap">
     <aside><button class="green" id="new">+ Neuer Test</button><div id="tlist"></div></aside>
     <section id="pane"></section>
@@ -133,6 +144,14 @@ const sym=v=>v===0?'✓':v===.5?'½':'✗';
 const dt=ts=>ts?new Date(ts).toLocaleString('de-DE'):'';
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2200)}
 
+// ===== Schullogo: lokal (logo.svg im Repo), sonst von der Schulwebsite =====
+const LOGO_REMOTE='https://koenigswinter.cjd.de/themes/custom/cjd/logo.svg';
+const logo=(cls='')=>`<img class="logo ${cls}" src="logo.svg" alt="CJD Königswinter">`;
+document.addEventListener('error',e=>{const t=e.target;
+  if(t.tagName==='IMG'&&t.classList.contains('logo')){if(!t.dataset.f){t.dataset.f=1;t.src=LOGO_REMOTE}else t.style.display='none'}},true);
+// bereits vor dem Skript fehlgeschlagene Logos (statisches HTML) nachträglich umleiten
+document.querySelectorAll('img.logo').forEach(i=>{if(i.complete&&!i.naturalWidth){i.dataset.f=1;i.src=LOGO_REMOTE}});
+
 // ===== Bewertung =====
 // 0 = richtig, 0.5 = halber Fehler (genau 1 Zeichen fehlt/falsch/zu viel), 1 = Fehler. Groß/Klein zählt.
 const norm=s=>String(s||'').replace(/[’‘`´]/g,"'").trim().replace(/\s+/g,' ');
@@ -162,7 +181,7 @@ function score(given,key){
 }
 
 // ===== State =====
-let tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, keys=[], keysOk=false, edDirty=false, selSub=null, L=[];
+let tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
 function detach(){L.forEach(([r,fn])=>r.off('value',fn));L=[]}
 function listen(path,cb){const r=db.ref(path);const fn=r.on('value',s=>cb(s.val()));L.push([r,fn])}
 const toArr=v=>Array.isArray(v)?v:v?Object.keys(v).sort((a,b)=>a-b).map(k=>v[k]):[];
@@ -188,19 +207,20 @@ function badge(s){const [t,c]=({draft:['Entwurf','b0'],open:['freigegeben','b1']
 function renderList(){
   const ids=Object.keys(tests).sort((a,b)=>(tests[b].createdAt||0)-(tests[a].createdAt||0));
   $('tlist').innerHTML=ids.map(c=>{const t=tests[c];return `<div class="ti ${c===sel?'on':''}" data-c="${c}">
-    <div class="tt">${esc(t.title)}</div><div class="mut">${esc(t.cls||'–')} · ${t.createdAt?new Date(t.createdAt).toLocaleDateString('de-DE'):''} · <b>${c}</b> ${badge(t.status)}</div></div>`}).join('')
+    <div class="tt">${esc(t.title)}</div><div class="mut">${esc(t.cls||'–')}${t.teacher?' · '+esc(t.teacher):''} · ${t.createdAt?new Date(t.createdAt).toLocaleDateString('de-DE'):''} · <b>${c}</b> ${badge(t.status)}</div></div>`}).join('')
     ||'<p class="mut">Noch keine Tests.</p>';
 }
 $('tlist').onclick=e=>{const d=e.target.closest('[data-c]');if(d)select(d.dataset.c)};
 $('new').onclick=()=>{detach();sel=null;creating=true;keys=[];edDirty=false;renderList();renderPane()};
 
 function select(code){
-  detach(); creating=false; sel=code; selSub=null; subs={}; grades={}; keys=[]; keysOk=false; edDirty=false;
+  detach(); creating=false; sel=code; selSub=null; pin=null; subs={}; grades={}; keys=[]; keysOk=false; edDirty=false;
   tab=tests[code]&&tests[code].status==='draft'?'edit':'res';
   renderList(); renderPane();
   const resUpd=()=>{if(tab==='res'){renderRows();renderDetail();renderAna()}};
   listen('vt/subs/'+code,v=>{subs=v||{};resUpd()});
   listen('vt/grades/'+code,v=>{grades=v||{};resUpd()});
+  listen('vt/pins/'+code,v=>{if(v==null&&sel===code){db.ref('vt/pins/'+code).set(newPin());return}pin=v;renderHead()});
   listen('vt/keys/'+code,v=>{keys=toArr(v);keysOk=true;if(tab==='edit'){if(!edDirty)renderBody()}else resUpd()});
 }
 
@@ -215,10 +235,11 @@ function renderHead(){
   const t=tests[sel], h=$('ph'); if(!h||!t) return;
   const n=(t.prompts||[]).length;
   h.innerHTML=`<div class="top"><div><h2>${esc(t.title)}</h2>
-      <div class="mut">${esc(t.cls||'–')} · ${n} Vokabeln · ${f(t.duration/60)} Min. · ${t.shuffle?'Reihenfolge gemischt':'feste Reihenfolge'}</div></div>
+      <div class="mut">${esc(t.cls||'–')}${t.teacher?' · Lehrkraft '+esc(t.teacher):''} · ${n} Vokabeln · ${f(t.duration/60)} Min. · ${t.shuffle?'Reihenfolge gemischt':'feste Reihenfolge'}</div></div>
       <div class="codebox" data-a="big" title="Groß anzeigen">${sel}</div></div>
     <div class="acts">${badge(t.status)}
       ${t.status==='open'?'<button data-a="close" class="red">Test beenden</button>':`<button data-a="open" class="green">${t.status==='closed'?'Wieder freigeben':'Freigeben'}</button>`}
+      ${t.lock!==false?`<span class="pin" title="Für einen weiteren Versuch auf einem Gerät, auf dem der Test schon geschrieben wurde">Geräte-PIN <b>${pin||'…'}</b></span>`:'<span class="mut">mehrere Versuche pro Gerät erlaubt</span>'}
       <button data-a="big">Code anzeigen</button><button data-a="dup">Duplizieren</button><button data-a="del" class="ghost">Löschen</button></div>
     <div class="tabs"><button data-t="res" class="${tab==='res'?'on':''}">Ergebnisse</button><button data-t="edit" class="${tab==='edit'?'on':''}">Bearbeiten</button></div>`;
 }
@@ -230,14 +251,16 @@ function renderBody(){
 
 // ===== Editor =====
 function editor(code){
-  const t=code?tests[code]:{title:'',cls:'',duration:600,shuffle:true,prompts:[],inputOrder:lastOrder()};
+  const t=code?tests[code]:{title:'',cls:'',teacher:lastTeacher(),duration:600,shuffle:true,prompts:[],inputOrder:lastOrder()};
   const o=t.inputOrder==='en'?'en':'de';
   const txt=(t.prompts||[]).map((p,i)=>o==='en'?`${keys[i]??''} = ${p}`:`${p} = ${keys[i]??''}`).join('\n');
   return `<div class="ed">
     <div class="g3"><label>Titel<input id="eT" value="${esc(t.title)}" placeholder="Unit 2 – At school"></label>
       <label>Lerngruppe<input id="eC" value="${esc(t.cls||'')}" placeholder="5f"></label>
+      <label>Lehrerkürzel <span class="mut">(optional)</span><input id="eK" value="${esc(t.teacher||'')}" placeholder="z. B. OEM" maxlength="10" autocapitalize="characters" style="text-transform:uppercase"></label>
       <label>Dauer (Min.)<input id="eD" type="number" min="1" max="180" step="0.5" value="${t.duration/60}"></label></div>
     <label class="chk"><input type="checkbox" id="eS" ${t.shuffle?'checked':''}> Reihenfolge für jede Person mischen</label>
+    <label class="chk"><input type="checkbox" id="eL1" ${t.lock!==false?'checked':''}> Ein Versuch pro Gerät – weitere Person nur mit Geräte-PIN</label>
     <label>Eingabeformat der Liste <span class="mut">(abgefragt wird immer Deutsch → Englisch)</span>
       <select id="eO"><option value="de" ${o==='de'?'selected':''}>Deutsch = Englisch</option><option value="en" ${o==='en'?'selected':''}>Englisch = Deutsch</option></select></label>
     <label id="eL">${orderHint(o)}</label>
@@ -257,6 +280,7 @@ function parse(txt){
   return {out,bad};
 }
 // Eingabereihenfolge: 'de' = "Deutsch = Englisch", 'en' = "Englisch = Deutsch"
+const lastTeacher=()=>{try{return localStorage.getItem('vt_teacher')||''}catch(e){return ''}};
 const lastOrder=()=>{try{return localStorage.getItem('vt_order')==='en'?'en':'de'}catch(e){return 'de'}};
 const orderHint=o=>o==='en'
   ?'Vokabeln – eine pro Zeile: <code>Englisch = Deutsch</code> · mehrere richtige englische Lösungen mit <code>;</code> trennen · zwei Spalten aus Excel (Englisch | Deutsch) einfügen geht auch'
@@ -277,13 +301,14 @@ function upd(){const v=$('eV');if(!v)return;const r=readPairs(),u=untypeable(r.o
 // Zeichen, die die Schüler-Tastatur (englisch, ohne Umlaute) tippen kann
 const TYPEABLE=/^[A-Za-z0-9 \-',.?!()\/;]*$/;
 const untypeable=out=>out.map((x,i)=>TYPEABLE.test(x[1])?0:i+1).filter(Boolean);
+const newPin=()=>String(Math.floor(1000+Math.random()*9000));
 async function newCode(){
   const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for(;;){let c='';for(let i=0;i<4;i++)c+=A[Math.floor(Math.random()*A.length)];
     if(!(await db.ref('vt/tests/'+c).get()).exists()) return c;}
 }
 async function saveTest(code){
-  const title=$('eT').value.trim(), cls=$('eC').value.trim(), dur=Math.round(parseFloat($('eD').value)*60), shuffle=$('eS').checked;
+  const title=$('eT').value.trim(), cls=$('eC').value.trim(), teacher=$('eK').value.trim().toUpperCase().slice(0,10), dur=Math.round(parseFloat($('eD').value)*60), shuffle=$('eS').checked, lock=$('eL1').checked;
   const {out,bad}=readPairs(), inputOrder=ord();
   if(!title) return alert('Bitte einen Titel eingeben.');
   if(!(dur>=30)) return alert('Bitte eine gültige Dauer eingeben.');
@@ -292,17 +317,18 @@ async function saveTest(code){
   if(u.length&&!confirm(`Vokabel ${u.join(', ')}: Die englische Lösung enthält Zeichen (z. B. Umlaute), die auf der Schülertastatur fehlen. Trotzdem speichern?`)) return;
   if(bad.length&&!confirm(`Zeile(n) ${bad.join(', ')} werden ignoriert (kein „=“). Trotzdem speichern?`)) return;
   const prompts=out.map(x=>x[0]), key=out.map(x=>x[1]);
+  try{localStorage.setItem('vt_teacher',teacher)}catch(e){}
   try{
     if(code){
       if(!keysOk) return;
       if(Object.keys(subs).length&&!confirm('Es gibt schon Teilnahmen. Änderungen an Anzahl/Reihenfolge der Vokabeln verfälschen die Auswertung. Trotzdem speichern?')) return;
       await db.ref('vt/keys/'+code).set(key);
-      await db.ref('vt/tests/'+code).update({title,cls,duration:dur,shuffle,prompts,inputOrder});
+      await db.ref('vt/tests/'+code).update({title,cls,teacher,duration:dur,shuffle,lock,prompts,inputOrder});
       edDirty=false; toast('Gespeichert');
     } else {
       const c=await newCode();
-      await db.ref('vt/keys/'+c).set(key);
-      await db.ref('vt/tests/'+c).set({title,cls,duration:dur,shuffle,prompts,inputOrder,status:'draft',createdAt:TS});
+      await db.ref('vt/keys/'+c).set(key); await db.ref('vt/pins/'+c).set(newPin());
+      await db.ref('vt/tests/'+c).set({title,cls,teacher,duration:dur,shuffle,lock,prompts,inputOrder,status:'draft',createdAt:TS});
       select(c); toast('Gespeichert – Code '+c);
     }
   }catch(e){alert('Fehler beim Speichern: '+(e.code||e.message))}
@@ -311,7 +337,7 @@ async function saveTest(code){
 // ===== Ergebnisse =====
 function resLayout(){
   $('pb').innerHTML=`<div class="bar"><span id="sum" class="mut"></span><span class="sp"></span><button data-a="csv">CSV-Export</button><button data-a="print">Rückgabebögen drucken</button></div>
-    <div class="tw"><table class="res"><thead><tr><th>Name</th><th>Status</th><th>Ausgefüllt</th><th>Fehler</th><th>Punkte</th><th title="Wie oft die App/der Tab verlassen wurde">App-Wechsel</th><th>Dauer</th></tr></thead><tbody id="rb"></tbody></table></div>
+    <div class="tw"><table class="res"><thead><tr><th>Name</th><th>Status</th><th>Ausgefüllt</th><th>Fehler</th><th>Punkte</th><th title="Wie oft die App/der Tab verlassen wurde">App-Wechsel</th><th>Dauer</th><th title="Anonyme Geräte-ID und Hinweise auf mehrere Versuche">Gerät / Hinweis</th></tr></thead><tbody id="rb"></tbody></table></div>
     <div id="det"></div><h3>Wortanalyse</h3><div class="tw"><table class="res" id="ana"></table></div>`;
 }
 function evalSub(id){
@@ -325,6 +351,19 @@ function stat(s,t){
   const rem=(s.startedAt||0)+dur-(Date.now()+off);
   return rem>0?{txt:'läuft · '+fmt(rem/1000),cls:'run',dur:'–'}:{txt:'keine Abgabe',cls:'bad',dur:'–'};
 }
+// Mehrfachversuche erkennen: gleiches Gerät bzw. gleicher Name (ohne Groß/Klein, Satzzeichen, Leerzeichen)
+const nameKey=n=>String(n||'').toLowerCase().replace(/[^a-z0-9äöüß]/g,'');
+const byStart=(a,b)=>(subs[a].startedAt||0)-(subs[b].startedAt||0);
+function flags(id){
+  const s=subs[id], all=Object.keys(subs), out=[];
+  if(s.dev){const same=all.filter(x=>subs[x].dev===s.dev).sort(byStart), k=same.indexOf(id);
+    if(k>0) out.push(s.unlocked?{t:`${k+1}. Person auf Gerät (PIN)`,w:0}:{t:`${k+1}. Versuch auf Gerät`,w:1})}
+  const nk=nameKey(s.name), sameN=all.filter(x=>nameKey(subs[x].name)===nk).sort(byStart);
+  if(sameN.length>1) out.push({t:`Name ${sameN.indexOf(id)+1}/${sameN.length}`,w:1});
+  return out;
+}
+const flagHtml=id=>{const s=subs[id];return `<span class="mut">${s.dev?'#'+esc(s.dev):'–'}</span> `+flags(id).map(x=>`<span class="${x.w?'warn':'mut'}">${esc(x.t)}</span>`).join(' · ')};
+const flagTxt=id=>flags(id).map(x=>x.t).join(' · ');
 const sortedIds=(onlyDone)=>Object.keys(subs).filter(id=>!onlyDone||subs[id].status==='submitted')
   .sort((a,b)=>(subs[a].name||'').localeCompare(subs[b].name||'','de',{sensitivity:'base'}));
 function renderRows(){
@@ -333,8 +372,8 @@ function renderRows(){
   rb.innerHTML=ids.map(id=>{const s=subs[id],e=evalSub(id),st=stat(s,t);
     return `<tr data-s="${id}" class="${id===selSub?'sel':''}"><td><b>${esc(s.name)}</b></td><td><span class="st ${st.cls}">${st.txt}</span></td>
       <td>${e.filled}/${n}</td><td><b>${f(e.err)}</b></td><td>${f(n-e.err)}/${n}</td>
-      <td>${s.blur?`<span class="warn">${s.blur}</span>`:'0'}</td><td class="${st.late?'warn':''}" title="${st.late?'Zeitlimit überschritten':''}">${st.dur}</td></tr>`}).join('')
-    ||'<tr><td colspan="7" class="mut">Noch keine Teilnahmen.</td></tr>';
+      <td>${s.blur?`<span class="warn">${s.blur}</span>`:'0'}</td><td class="${st.late?'warn':''}" title="${st.late?'Zeitlimit überschritten':''}">${st.dur}</td><td>${flagHtml(id)}</td></tr>`}).join('')
+    ||'<tr><td colspan="8" class="mut">Noch keine Teilnahmen.</td></tr>';
   const done=sortedIds(true), running=ids.length-done.length;
   const avg=done.length?done.reduce((x,id)=>x+evalSub(id).err,0)/done.length:0;
   $('sum').textContent=`${done.length} abgegeben · ${running} offen`+(done.length?` · Ø ${avg.toFixed(1).replace('.',',')} Fehler`:'');
@@ -343,7 +382,8 @@ function renderDetail(){
   const d=$('det'); if(!d) return;
   if(!selSub||!subs[selSub]||!keysOk){d.innerHTML='';return}
   const s=subs[selSub], e=evalSub(selSub), t=tests[sel], n=keys.length;
-  d.innerHTML=`<div class="dh"><h3>${esc(s.name)} – ${f(e.err)} Fehler · ${f(n-e.err)}/${n} Punkte</h3>
+  const fl=flagTxt(selSub);
+  d.innerHTML=`<div class="dh"><h3>${esc(s.name)} – ${f(e.err)} Fehler · ${f(n-e.err)}/${n} Punkte${fl?` <span class="warn" style="font-size:14px">(${esc(fl)})</span>`:''}</h3>
       <span class="mut">Wertung anklicken: ✓ → ½ → ✗ (Rahmen = manuell)</span><button data-a="delsub" class="ghost">Teilnahme löschen</button><button data-a="closedet" class="ghost">✕</button></div>
     <div class="tw"><table class="res"><thead><tr><th>#</th><th>Deutsch</th><th>Englisch (Lösung)</th><th>Antwort</th><th>Wertung</th></tr></thead><tbody>
     ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc((t.prompts||[])[x.i])}</td><td>${esc(keys[x.i])}</td>
@@ -369,46 +409,49 @@ setInterval(()=>{if(sel&&tab==='res'&&$('rb')&&Object.values(subs).some(s=>s.sta
 function csv(){
   const t=tests[sel], n=keys.length, P=t.prompts||[];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const head=['Name','Status','Fehler','Punkte','Max','App-Wechsel','Start','Abgabe'];
+  const head=['Name','Status','Fehler','Punkte','Max','App-Wechsel','Start','Abgabe','Gerät','Hinweis'];
   for(let i=0;i<n;i++) head.push(`${i+1}: ${P[i]}`,`${i+1}: Wertung`);
   const rows=[head];
   sortedIds(false).forEach(id=>{const s=subs[id],e=evalSub(id);
-    const r=[s.name,s.status==='submitted'?(s.auto?'abgegeben (auto)':'abgegeben'):'offen',f(e.err),f(n-e.err),n,s.blur||0,dt(s.startedAt),dt(s.submittedAt)];
+    const r=[s.name,s.status==='submitted'?(s.auto?'abgegeben (auto)':'abgegeben'):'offen',f(e.err),f(n-e.err),n,s.blur||0,dt(s.startedAt),dt(s.submittedAt),s.dev||'',flagTxt(id)];
     e.items.forEach(x=>r.push(x.ans,f(x.val))); rows.push(r)});
   const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`Vokabeltest_${(t.title||sel).replace(/[^\wäöüÄÖÜß-]+/g,'_')}_${sel}.csv`;
+  a.download=`Vokabeltest_${t.teacher?t.teacher+'_':''}${(t.title||sel).replace(/[^\wäöüÄÖÜß-]+/g,'_')}_${sel}.csv`;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
 function printAll(){
   const t=tests[sel], P=t.prompts||[], ids=sortedIds(true), n=keys.length;
   if(!ids.length) return alert('Noch keine Abgaben.');
   $('print').innerHTML=ids.map(id=>{const s=subs[id],e=evalSub(id);
-    return `<div class="pg"><h2>${esc(t.title)}</h2><p>${esc(s.name)} · ${esc(t.cls||'')} · ${s.submittedAt?new Date(s.submittedAt).toLocaleDateString('de-DE'):''}</p>
+    return `<div class="pg"><div class="pgh">${logo()}<div class="r">CJD Königswinter<br>Vokabeltest Englisch${t.teacher?' · '+esc(t.teacher):''}</div></div>
+      <h2>${esc(t.title)}</h2><p>${esc(s.name)} · ${esc(t.cls||'')} · ${s.submittedAt?new Date(s.submittedAt).toLocaleDateString('de-DE'):''}</p>
       <p><b>${f(e.err)} Fehler</b> – ${f(n-e.err)} von ${n} Punkten</p>
       <table><tr><th>#</th><th>Deutsch</th><th>Deine Antwort</th><th>Englisch (Lösung)</th><th></th></tr>
       ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc(P[x.i])}</td><td>${esc(x.ans)}</td><td>${esc(keys[x.i])}</td><td>${sym(x.val)}</td></tr>`).join('')}</table></div>`}).join('');
-  window.print();
+  // auf Logo warten (max. 2 s), dann drucken
+  const imgs=[...$('print').querySelectorAll('img')].filter(i=>!i.complete);
+  Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.onload=i.onerror=r}))),new Promise(r=>setTimeout(r,2000))]).then(()=>window.print());
 }
 
 // ===== Aktionen =====
 function showBig(){
   const u=new URL('./',location.href).href;
-  $('ov').innerHTML=`<div><div class="ovt">${esc(tests[sel].title)}</div><div class="ovc">${sel}</div><div class="ovu">${esc(u)}</div><div class="mut">Klicken zum Schließen</div></div>`;
+  $('ov').innerHTML=`<div class="ovl">${logo()}<div class="ovt">${esc(tests[sel].title)}${tests[sel].teacher?' · '+esc(tests[sel].teacher):''}</div><div class="ovc">${sel}</div><div class="ovu">${esc(u)}</div><div class="mut">Klicken zum Schließen</div></div>`;
   $('ov').hidden=false;
 }
 $('ov').onclick=()=>$('ov').hidden=true;
 async function dup(){
   if(!keysOk) return; const t=tests[sel], c=await newCode();
-  await db.ref('vt/keys/'+c).set(keys);
-  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',duration:t.duration,shuffle:!!t.shuffle,prompts:t.prompts,inputOrder:t.inputOrder||'de',status:'draft',createdAt:TS});
+  await db.ref('vt/keys/'+c).set(keys); await db.ref('vt/pins/'+c).set(newPin());
+  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',teacher:t.teacher||'',duration:t.duration,shuffle:!!t.shuffle,lock:t.lock!==false,prompts:t.prompts,inputOrder:t.inputOrder||'de',status:'draft',createdAt:TS});
   select(c); toast('Kopie angelegt – Code '+c);
 }
 async function del(){
   const t=tests[sel];
   if(!confirm(`„${t.title}“ mit allen Teilnahmen endgültig löschen?`)) return;
   const c=sel; detach(); sel=null; renderPane();
-  await db.ref().update({['vt/tests/'+c]:null,['vt/keys/'+c]:null,['vt/subs/'+c]:null,['vt/grades/'+c]:null});
+  await db.ref().update({['vt/tests/'+c]:null,['vt/keys/'+c]:null,['vt/subs/'+c]:null,['vt/grades/'+c]:null,['vt/pins/'+c]:null,['vt/unlock/'+c]:null});
   toast('Gelöscht');
 }
 $('pane').addEventListener('change',e=>{if(e.target.id==='eO')changeOrder()});
