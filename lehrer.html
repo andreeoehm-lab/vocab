@@ -181,7 +181,7 @@ function score(given,key){
 }
 
 // ===== State =====
-let tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
+let tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, accept={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
 function detach(){L.forEach(([r,fn])=>r.off('value',fn));L=[]}
 function listen(path,cb){const r=db.ref(path);const fn=r.on('value',s=>cb(s.val()));L.push([r,fn])}
 const toArr=v=>Array.isArray(v)?v:v?Object.keys(v).sort((a,b)=>a-b).map(k=>v[k]):[];
@@ -214,12 +214,13 @@ $('tlist').onclick=e=>{const d=e.target.closest('[data-c]');if(d)select(d.datase
 $('new').onclick=()=>{detach();sel=null;creating=true;keys=[];edDirty=false;renderList();renderPane()};
 
 function select(code){
-  detach(); creating=false; sel=code; selSub=null; pin=null; subs={}; grades={}; keys=[]; keysOk=false; edDirty=false;
+  detach(); creating=false; sel=code; selSub=null; pin=null; subs={}; grades={}; accept={}; keys=[]; keysOk=false; edDirty=false;
   tab=tests[code]&&tests[code].status==='draft'?'edit':'res';
   renderList(); renderPane();
   const resUpd=()=>{if(tab==='res'){renderRows();renderDetail();renderAna()}};
   listen('vt/subs/'+code,v=>{subs=v||{};resUpd()});
   listen('vt/grades/'+code,v=>{grades=v||{};resUpd()});
+  listen('vt/accept/'+code,v=>{accept=v||{};resUpd()});
   listen('vt/pins/'+code,v=>{if(v==null&&sel===code){db.ref('vt/pins/'+code).set(newPin());return}pin=v;renderHead()});
   listen('vt/keys/'+code,v=>{keys=toArr(v);keysOk=true;if(tab==='edit'){if(!edDirty)renderBody()}else resUpd()});
 }
@@ -342,7 +343,10 @@ function resLayout(){
 }
 function evalSub(id){
   const s=subs[id], a=s.answers||[], g=grades[id]||{};
-  const items=keys.map((k,i)=>{const ans=a[i]||'', auto=score(ans,k), ov=g[i]==null?null:g[i];return {i,ans,auto,ov,val:ov==null?auto:ov}});
+  const items=keys.map((k,i)=>{const ans=a[i]||'', auto=score(ans,k);
+    const rule=norm(ans)&&accept[i]?accept[i][akey(ans)]:undefined;
+    const ov=g[i]!=null?g[i]:rule!=null?rule:null;
+    return {i,ans,auto,ov,rule:g[i]==null&&rule!=null,val:ov==null?auto:ov}});
   return {items,err:items.reduce((x,y)=>x+y.val,0),filled:items.filter(x=>norm(x.ans)).length};
 }
 function stat(s,t){
@@ -384,11 +388,11 @@ function renderDetail(){
   const s=subs[selSub], e=evalSub(selSub), t=tests[sel], n=keys.length;
   const fl=flagTxt(selSub);
   d.innerHTML=`<div class="dh"><h3>${esc(s.name)} – ${f(e.err)} Fehler · ${f(n-e.err)}/${n} Punkte${fl?` <span class="warn" style="font-size:14px">(${esc(fl)})</span>`:''}</h3>
-      <span class="mut">Wertung anklicken: ✓ → ½ → ✗ (Rahmen = manuell)</span><button data-a="delsub" class="ghost">Teilnahme löschen</button><button data-a="closedet" class="ghost">✕</button></div>
+      <span class="mut">Wertung anklicken: ✓ → ½ → ✗ (Rahmen = manuell)</span><label class="mut" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-a="sync" ${syncOn()?'checked':''}> gleiche Antworten mitkorrigieren</label><button data-a="delsub" class="ghost">Teilnahme löschen</button><button data-a="closedet" class="ghost">✕</button></div>
     <div class="tw"><table class="res"><thead><tr><th>#</th><th>Deutsch</th><th>Englisch (Lösung)</th><th>Antwort</th><th>Wertung</th></tr></thead><tbody>
     ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc((t.prompts||[])[x.i])}</td><td>${esc(keys[x.i])}</td>
       <td class="ans">${x.ans?esc(x.ans):'<span class="mut">—</span>'}</td>
-      <td><button class="g g${x.val*2}${x.ov!=null?' man':''}" data-g="${x.i}">${sym(x.val)}</button></td></tr>`).join('')}
+      <td><button class="g g${x.val*2}${x.ov!=null?' man':''}" data-g="${x.i}" title="${x.rule?'Korrektur gilt für alle identischen Antworten':x.ov!=null?'Einzelkorrektur':'automatisch'}">${sym(x.val)}</button></td></tr>`).join('')}
     </tbody></table></div>`;
 }
 function renderAna(){
@@ -400,9 +404,18 @@ function renderAna(){
   a.innerHTML='<thead><tr><th>#</th><th>Deutsch</th><th>Englisch</th><th>Fehlerquote</th></tr></thead><tbody>'+
     rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.p)}</td><td>${esc(r.k)}</td><td><span class="barq"><i style="width:${Math.round(r.q*100)}%"></i></span>${Math.round(r.q*100)} %</td></tr>`).join('')+'</tbody>';
 }
+// Korrekturregel für identische Antworten (gleiche Vokabel, exakt gleiche Schreibweise inkl. Groß/Klein)
+const akey=ans=>encodeURIComponent(norm(ans)).replace(/\./g,'%2E');
+const syncOn=()=>{try{return localStorage.getItem('vt_sync')!=='0'}catch(e){return true}};
 function cycle(i){
-  const it=evalSub(selSub).items[i], seq=[0,.5,1], nx=seq[(seq.indexOf(it.val)+1)%3];
-  db.ref(`vt/grades/${sel}/${selSub}/${i}`).set(nx===it.auto?null:nx);
+  const it=evalSub(selSub).items[i], seq=[0,.5,1], nx=seq[(seq.indexOf(it.val)+1)%3], v=nx===it.auto?null:nx;
+  if(!syncOn()||!norm(it.ans)){db.ref(`vt/grades/${sel}/${selSub}/${i}`).set(v);return}
+  const k=akey(it.ans), upd={[`vt/accept/${sel}/${i}/${k}`]:v};
+  let others=0;
+  Object.keys(subs).forEach(id=>{const a=(subs[id].answers||[])[i];
+    if(a!=null&&norm(a)&&akey(a)===k){upd[`vt/grades/${sel}/${id}/${i}`]=null;if(id!==selSub)others++}});
+  db.ref().update(upd);
+  if(others) toast(`Auch bei ${others} weiteren Abgabe${others>1?'n':''} mit „${norm(it.ans)}“ übernommen`);
 }
 setInterval(()=>{if(sel&&tab==='res'&&$('rb')&&Object.values(subs).some(s=>s.status!=='submitted'))renderRows()},1000);
 
@@ -451,7 +464,7 @@ async function del(){
   const t=tests[sel];
   if(!confirm(`„${t.title}“ mit allen Teilnahmen endgültig löschen?`)) return;
   const c=sel; detach(); sel=null; renderPane();
-  await db.ref().update({['vt/tests/'+c]:null,['vt/keys/'+c]:null,['vt/subs/'+c]:null,['vt/grades/'+c]:null,['vt/pins/'+c]:null,['vt/unlock/'+c]:null});
+  await db.ref().update({['vt/tests/'+c]:null,['vt/keys/'+c]:null,['vt/subs/'+c]:null,['vt/grades/'+c]:null,['vt/pins/'+c]:null,['vt/unlock/'+c]:null,['vt/accept/'+c]:null});
   toast('Gelöscht');
 }
 $('pane').addEventListener('change',e=>{if(e.target.id==='eO')changeOrder()});
@@ -471,6 +484,7 @@ $('pane').addEventListener('click',async e=>{
     case 'del': del(); break;
     case 'save': saveTest(sel); break;
     case 'csv': csv(); break;
+    case 'sync': try{localStorage.setItem('vt_sync',b.checked?'1':'0')}catch(e){} break;
     case 'print': printAll(); break;
     case 'closedet': selSub=null; renderRows(); renderDetail(); break;
     case 'delsub':
