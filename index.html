@@ -17,7 +17,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);box-shadow:0 1px 4px #0002;z-index:2}
 header .logo{height:34px;width:auto;flex:none}
-#hT{color:var(--mut);font-size:16px}
+#hT{font:700 15px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:6px 9px;border-radius:8px;background:#e3e7ee;color:var(--ink)}
+#hT:empty{display:none}
+.thead{max-width:900px;margin:0 auto 12px;padding:12px 14px;background:var(--card);border-radius:12px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
+.thead b{font-size:20px}
+.thead span{color:var(--mut);font-size:15px}
 header .t{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hName{color:var(--mut);font-size:16px}
 #timer{font:700 26px/1 ui-monospace,Menlo,monospace;padding:6px 12px;border-radius:10px;background:#e8eefc;color:var(--acc)}
@@ -282,7 +286,7 @@ async function start(code,name,t){
 function showTest(){
   screen='test'; $('hd').hidden=false;
   $('hLogo').innerHTML=logo(); $('hTitle').textContent=run.title; $('hT').textContent=run.teacher||''; $('hName').textContent=run.name;
-  main.innerHTML='<div class="list"><div class="row hdr"><div></div><div class="p">Deutsch</div><div>Englisch</div></div>'+run.order.map((i,p)=>
+  main.innerHTML=`<div class="thead"><b>${esc(run.title)}</b>${run.teacher?`<span>Lehrkraft: <b style="font-size:inherit;color:var(--ink)">${esc(run.teacher)}</b></span>`:''}<span>CJD Königswinter</span><span>${esc(run.name)}</span></div>`+'<div class="list"><div class="row hdr"><div></div><div class="p">Deutsch</div><div>Englisch</div></div>'+run.order.map((i,p)=>
     `<div class="row"><div class="n">${p+1}</div><div class="p">${esc(run.prompts[i])}</div><div class="field" data-f="a${i}"></div></div>`
   ).join('')+'<button class="big" id="sub2">Abgeben</button></div>';
   run.order.forEach(i=>vals['a'+i]=run.answers[i]||'');
