@@ -75,6 +75,9 @@ table.res{border-collapse:collapse;width:100%}
 .st{font-size:13px;padding:2px 8px;border-radius:99px}
 .st.ok{background:#dff3e4;color:var(--ok)}.st.run{background:#e8eefc;color:var(--acc)}.st.bad{background:#fde7e5;color:var(--bad)}
 .warn{color:var(--bad);font-weight:600}
+.cred{margin:12px 0;padding:12px 14px;border-radius:10px;background:#dff3e4;line-height:1.6}
+label.ed{display:block;color:var(--mut);font-size:13px}
+label.ed input{margin-top:4px}
 .pin{padding:4px 10px;border-radius:8px;background:#fff4e0;color:#8a5a00;font-size:14px}
 .pin b{font:700 17px ui-monospace,Menlo,monospace;letter-spacing:.1em;margin-left:4px}
 #det{margin-top:8px}
@@ -100,6 +103,13 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
   .pg{page-break-after:always}
   .pg table{border-collapse:collapse;width:100%}
   .pg th,.pg td{border:1px solid #999;padding:4px 6px;text-align:left}
+  .pg table{page-break-inside:auto}.pg tr{page-break-inside:avoid}
+  .sig{margin-top:14mm;border:1px solid #999;padding:4mm 5mm;page-break-inside:avoid}
+  .sigt{font-weight:700;margin-bottom:2mm}
+  .sig p{margin:0 0 12mm;font-size:11pt}
+  .sigr{display:grid;grid-template-columns:1fr 2fr;gap:10mm}
+  .sigr div{font-size:9pt;color:#444}
+  .sigr span{display:block;border-bottom:1px solid #000;height:0;margin-bottom:1.5mm}
 }
 </style>
 </head>
@@ -112,9 +122,11 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
 </form></div>
 
 <div id="dash" hidden>
-  <header><img class="logo" src="logo.svg" alt="CJD Königswinter"><b>Vokabeltests</b><span class="mut">CJD Königswinter</span><span class="sp"></span><span class="mut" id="who"></span><button id="logout">Abmelden</button></header>
+  <header><img class="logo" src="logo.svg" alt="CJD Königswinter"><b>Vokabeltests</b><span class="mut">CJD Königswinter</span><span class="sp"></span><span class="mut" id="who"></span><button id="team" hidden>Kolleg:innen</button><button id="logout">Abmelden</button></header>
   <div class="wrap">
-    <aside><button class="green" id="new">+ Neuer Test</button><div id="tlist"></div></aside>
+    <aside><button class="green" id="new">+ Neuer Test</button>
+      <select id="scope" hidden style="width:100%;margin-bottom:8px;font:inherit;padding:6px;border:1px solid #cfd5df;border-radius:8px"><option value="0">Meine Tests</option><option value="1">Alle Tests (Admin)</option></select>
+      <div id="tlist"></div></aside>
     <section id="pane"></section>
   </div>
 </div>
@@ -181,7 +193,7 @@ function score(given,key){
 }
 
 // ===== State =====
-let tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, accept={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
+let me=null, users={}, teachers={}, approved=false, teamView=false, newCred=null, isAdmin=false, showAll=false, tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, accept={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
 function detach(){L.forEach(([r,fn])=>r.off('value',fn));L=[]}
 function listen(path,cb){const r=db.ref(path);const fn=r.on('value',s=>cb(s.val()));L.push([r,fn])}
 const toArr=v=>Array.isArray(v)?v:v?Object.keys(v).sort((a,b)=>a-b).map(k=>v[k]):[];
@@ -193,28 +205,52 @@ $('logout').onclick=()=>auth.signOut();
 auth.onAuthStateChanged(u=>{
   $('login').hidden=!!u; $('dash').hidden=!u;
   if(u){
-    $('who').textContent=u.email;
+    me=u; $('who').textContent=u.email; $('who').title='UID: '+u.uid;
+    db.ref('vt/users/'+u.uid).set(u.email||'').catch(()=>{});
+    Promise.all([db.ref('vt/admins/'+u.uid).get().then(a=>a.val()===true).catch(()=>false),
+                 db.ref('vt/teachers/'+u.uid).get().then(a=>a.val()===true).catch(()=>false)]).then(([ad,ok])=>{
+      isAdmin=ad; approved=ok||ad;
+      if(isAdmin){
+        db.ref('vt/users').on('value',x=>{users=x.val()||{};renderList();renderHead();if(teamView)renderPane()});
+        db.ref('vt/teachers').on('value',x=>{teachers=x.val()||{};if(teamView)renderPane()});
+      }
+      $('scope').hidden=!isAdmin; $('team').hidden=!isAdmin; $('new').hidden=!approved;
+      $('who').textContent=u.email+(isAdmin?' (Admin)':'');
+      claim(); renderList(); renderPane();
+    });
     db.ref('vt/tests').on('value',s=>{
-      tests=s.val()||{}; renderList();
+      tests=s.val()||{}; claim(); renderList();
       if(sel){ if(!tests[sel]){detach();sel=null;renderPane()} else renderHead() }
     });
     renderPane();
-  } else { db.ref('vt/tests').off(); detach(); sel=null; creating=false; }
+  } else { db.ref('vt/tests').off(); db.ref('vt/users').off(); db.ref('vt/teachers').off(); users={}; teachers={}; approved=false; teamView=false; $('team').hidden=true; detach(); sel=null; creating=false; me=null; isAdmin=false; showAll=false; $('scope').hidden=true; }
 });
 
 // ===== Liste =====
 function badge(s){const [t,c]=({draft:['Entwurf','b0'],open:['freigegeben','b1'],closed:['beendet','b2']})[s]||['?','b0'];return `<span class="badge ${c}">${t}</span>`}
+// ===== Besitz: jede Lehrkraft sieht nur eigene Tests, Admin optional alle =====
+const mine=t=>me&&t.owner===me.uid;
+const visible=t=>mine(t)||(isAdmin&&(showAll||!t.owner));
+const ownerData=()=>({owner:me.uid});
+const ownerName=t=>users[t.owner]||'unbekannt';
+// Tests ohne Besitzer (aus der Zeit vor der Umstellung) übernimmt der Admin automatisch
+function claim(){
+  if(!isAdmin) return;
+  const upd={}; Object.keys(tests).forEach(c=>{if(!tests[c].owner){upd[`vt/tests/${c}/owner`]=me.uid}});
+  if(Object.keys(upd).length) db.ref().update(upd).catch(()=>{});
+}
 function renderList(){
-  const ids=Object.keys(tests).sort((a,b)=>(tests[b].createdAt||0)-(tests[a].createdAt||0));
+  const ids=Object.keys(tests).filter(c=>visible(tests[c])).sort((a,b)=>(tests[b].createdAt||0)-(tests[a].createdAt||0));
   $('tlist').innerHTML=ids.map(c=>{const t=tests[c];return `<div class="ti ${c===sel?'on':''}" data-c="${c}">
-    <div class="tt">${esc(t.title)}</div><div class="mut">${esc(t.cls||'–')}${t.teacher?' · '+esc(t.teacher):''} · ${t.createdAt?new Date(t.createdAt).toLocaleDateString('de-DE'):''} · <b>${c}</b> ${badge(t.status)}</div></div>`}).join('')
+    <div class="tt">${esc(t.title)}</div><div class="mut">${esc(t.cls||'–')}${t.teacher?' · '+esc(t.teacher):''} · ${t.createdAt?new Date(t.createdAt).toLocaleDateString('de-DE'):''} · <b>${c}</b> ${badge(t.status)}</div>${!mine(t)?`<div class="mut" style="font-size:12px">von ${esc(ownerName(t))}</div>`:''}</div>`}).join('')
     ||'<p class="mut">Noch keine Tests.</p>';
 }
+$('scope').onchange=e=>{showAll=e.target.value==='1';if(sel&&!visible(tests[sel])){detach();sel=null;renderPane()}renderList()};
 $('tlist').onclick=e=>{const d=e.target.closest('[data-c]');if(d)select(d.dataset.c)};
-$('new').onclick=()=>{detach();sel=null;creating=true;keys=[];edDirty=false;renderList();renderPane()};
+$('new').onclick=()=>{detach();sel=null;teamView=false;creating=true;keys=[];edDirty=false;renderList();renderPane()};
 
 function select(code){
-  detach(); creating=false; sel=code; selSub=null; pin=null; subs={}; grades={}; accept={}; keys=[]; keysOk=false; edDirty=false;
+  detach(); creating=false; teamView=false; sel=code; selSub=null; pin=null; subs={}; grades={}; accept={}; keys=[]; keysOk=false; edDirty=false;
   tab=tests[code]&&tests[code].status==='draft'?'edit':'res';
   renderList(); renderPane();
   const resUpd=()=>{if(tab==='res'){renderRows();renderDetail();renderAna()}};
@@ -228,6 +264,8 @@ function select(code){
 // ===== Pane =====
 function renderPane(){
   const p=$('pane');
+  if(teamView&&isAdmin){p.innerHTML=teamHtml();return}
+  if(me&&!approved&&!isAdmin){p.innerHTML='<h2>Noch nicht freigeschaltet</h2><p class="mut">Dein Zugang muss erst von der Administration freigeschaltet werden. Bitte melde dich danach neu an.</p>';return}
   if(creating){p.innerHTML='<h2>Neuer Test</h2>'+editor(null);upd();return}
   if(!sel){p.innerHTML='<p class="mut">Links einen Test wählen oder „+ Neuer Test“.</p>';return}
   p.innerHTML='<div id="ph"></div><div id="pb"></div>'; renderHead(); renderBody();
@@ -236,7 +274,7 @@ function renderHead(){
   const t=tests[sel], h=$('ph'); if(!h||!t) return;
   const n=(t.prompts||[]).length;
   h.innerHTML=`<div class="top"><div><h2>${esc(t.title)}</h2>
-      <div class="mut">${esc(t.cls||'–')}${t.teacher?' · Lehrkraft '+esc(t.teacher):''} · ${n} Vokabeln · ${f(t.duration/60)} Min. · ${t.shuffle?'Reihenfolge gemischt':'feste Reihenfolge'}</div></div>
+      <div class="mut">${esc(t.cls||'–')}${t.teacher?' · Lehrkraft '+esc(t.teacher):''} · ${n} Vokabeln · ${f(t.duration/60)} Min. · ${t.shuffle?'Reihenfolge gemischt':'feste Reihenfolge'}</div>${!mine(t)?`<div class="warn" style="font-size:13px">Test von ${esc(ownerName(t))} – Admin-Ansicht</div>`:''}</div>
       <div class="codebox" data-a="big" title="Groß anzeigen">${sel}</div></div>
     <div class="acts">${badge(t.status)}
       ${t.status==='open'?'<button data-a="close" class="red">Test beenden</button>':`<button data-a="open" class="green">${t.status==='closed'?'Wieder freigeben':'Freigeben'}</button>`}
@@ -328,8 +366,8 @@ async function saveTest(code){
       edDirty=false; toast('Gespeichert');
     } else {
       const c=await newCode();
+      await db.ref('vt/tests/'+c).set({title,cls,teacher,duration:dur,shuffle,lock,prompts,inputOrder,status:'draft',createdAt:TS,...ownerData()});
       await db.ref('vt/keys/'+c).set(key); await db.ref('vt/pins/'+c).set(newPin());
-      await db.ref('vt/tests/'+c).set({title,cls,teacher,duration:dur,shuffle,lock,prompts,inputOrder,status:'draft',createdAt:TS});
       select(c); toast('Gespeichert – Code '+c);
     }
   }catch(e){alert('Fehler beim Speichern: '+(e.code||e.message))}
@@ -441,11 +479,66 @@ function printAll(){
       <h2>${esc(t.title)}</h2><p>${esc(s.name)} · ${esc(t.cls||'')} · ${s.submittedAt?new Date(s.submittedAt).toLocaleDateString('de-DE'):''}</p>
       <p><b>${f(e.err)} Fehler</b> – ${f(n-e.err)} von ${n} Punkten</p>
       <table><tr><th>#</th><th>Deutsch</th><th>Deine Antwort</th><th>Englisch (Lösung)</th><th></th></tr>
-      ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc(P[x.i])}</td><td>${esc(x.ans)}</td><td>${esc(keys[x.i])}</td><td>${sym(x.val)}</td></tr>`).join('')}</table></div>`}).join('');
+      ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc(P[x.i])}</td><td>${esc(x.ans)}</td><td>${esc(keys[x.i])}</td><td>${sym(x.val)}</td></tr>`).join('')}</table>
+      <div class="sig"><div class="sigt">Kenntnisnahme der Erziehungsberechtigten</div>
+        <p>Ich habe das Ergebnis des Vokabeltests zur Kenntnis genommen.</p>
+        <div class="sigr"><div><span></span>Datum</div><div><span></span>Unterschrift einer/eines Erziehungsberechtigten</div></div></div></div>`}).join('');
   // auf Logo warten (max. 2 s), dann drucken
   const imgs=[...$('print').querySelectorAll('img')].filter(i=>!i.complete);
   Promise.race([Promise.all(imgs.map(i=>new Promise(r=>{i.onload=i.onerror=r}))),new Promise(r=>setTimeout(r,2000))]).then(()=>window.print());
 }
+
+// ===== Kolleg:innen verwalten (nur Admin) =====
+const genPw=()=>{const A='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';let p='';for(let i=0;i<10;i++)p+=A[Math.floor(Math.random()*A.length)];return p};
+let auth2=null;
+function creator(){ // zweite Firebase-Instanz: Konto anlegen, ohne dass der Admin abgemeldet wird
+  if(!auth2){const app2=firebase.initializeApp(firebaseConfig,'creator');auth2=app2.auth();auth2.setPersistence(firebase.auth.Auth.Persistence.NONE)}
+  return auth2;
+}
+function teamHtml(){
+  const ids=[...new Set([...Object.keys(users),...Object.keys(teachers)])]
+    .sort((a,b)=>(users[a]||'').localeCompare(users[b]||'','de'));
+  const cnt=uid=>Object.values(tests).filter(t=>t.owner===uid).length;
+  const loginUrl=new URL('lehrer.html',location.href).href;
+  return `<h2>Kolleg:innen</h2>
+    <h3>Neuen Zugang anlegen</h3>
+    <div class="g3" style="grid-template-columns:2fr 1fr auto;align-items:end">
+      <label class="ed">E-Mail<input id="nE" type="email" placeholder="name@cjd.de"></label>
+      <label class="ed">Startpasswort<input id="nP" value="${genPw()}"></label>
+      <button class="green" data-a="mkuser">Anlegen</button></div>
+    ${newCred?`<div class="cred"><b>Zugang angelegt.</b> Bitte weitergeben:<br>Adresse: ${esc(loginUrl)}<br>E-Mail: <b>${esc(newCred.e)}</b><br>Passwort: <b>${esc(newCred.p)}</b>
+      <div class="acts"><button data-a="copycred">Kopieren</button><button data-a="hidecred" class="ghost">Ausblenden</button></div></div>`:''}
+    <div class="err" id="tErr"></div>
+    <h3>Zugänge</h3>
+    <div class="tw"><table class="res"><thead><tr><th>E-Mail</th><th>Status</th><th>Tests</th><th></th></tr></thead><tbody>
+    ${ids.map(uid=>{const self=uid===me.uid, ok=teachers[uid]===true;
+      return `<tr><td>${esc(users[uid]||'(noch nie angemeldet)')}</td>
+        <td>${self?'<span class="st ok">Admin</span>':ok?'<span class="st ok">freigeschaltet</span>':'<span class="st bad">gesperrt / wartet</span>'}</td>
+        <td>${cnt(uid)}</td>
+        <td>${self?'':`<button data-a="${ok?'block':'allow'}" data-u="${uid}">${ok?'Sperren':'Freischalten'}</button>`}
+            ${users[uid]?`<button data-a="reset" data-u="${uid}" class="ghost">Passwort-Mail</button>`:''}</td></tr>`}).join('')
+      ||'<tr><td colspan="4" class="mut">Noch keine Zugänge.</td></tr>'}
+    </tbody></table></div>
+    <p class="mut" style="margin-top:14px">Gesperrte Lehrkräfte können sich anmelden, sehen aber keine Tests und Ergebnisse mehr (auch nicht ihre eigenen). Konten endgültig löschen: Firebase-Konsole → Authentication → Users.<br>Wer sich selbst irgendwo registriert, erscheint hier als „wartet“ und hat keinen Zugriff.</p>`;
+}
+async function mkUser(){
+  const e=$('nE').value.trim(), p=$('nP').value.trim(), er=$('tErr');
+  if(!/^\S+@\S+\.\S+$/.test(e)) return er.textContent='Bitte gültige E-Mail eingeben.';
+  if(p.length<6) return er.textContent='Passwort: mindestens 6 Zeichen.';
+  er.textContent='Lege an …';
+  try{
+    const c=await creator().createUserWithEmailAndPassword(e,p), uid=c.user.uid;
+    await creator().signOut();
+    await db.ref().update({[`vt/teachers/${uid}`]:true,[`vt/users/${uid}`]:e});
+    newCred={e,p}; renderPane(); toast('Zugang angelegt');
+  }catch(x){
+    er.textContent=({'auth/email-already-in-use':'Diese E-Mail hat schon einen Zugang. Die Person soll sich einmal anmelden, dann erscheint sie unten und kann freigeschaltet werden.',
+      'auth/admin-restricted-operation':'Anlegen ist in Firebase gesperrt: Authentication → Einstellungen → Nutzeraktionen → „Erstellen (Registrierung) aktivieren“ einschalten.',
+      'auth/operation-not-allowed':'Anlegen ist in Firebase gesperrt: Authentication → Einstellungen → Nutzeraktionen → „Erstellen (Registrierung) aktivieren“ einschalten.',
+      'auth/invalid-email':'Ungültige E-Mail-Adresse.','auth/weak-password':'Passwort zu schwach (mind. 6 Zeichen).'})[x.code]||('Fehler: '+(x.code||x.message));
+  }
+}
+$('team').onclick=()=>{detach();sel=null;creating=false;teamView=true;newCred=null;renderList();renderPane()};
 
 // ===== Aktionen =====
 function showBig(){
@@ -456,8 +549,8 @@ function showBig(){
 $('ov').onclick=()=>$('ov').hidden=true;
 async function dup(){
   if(!keysOk) return; const t=tests[sel], c=await newCode();
+  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',teacher:t.teacher||'',duration:t.duration,shuffle:!!t.shuffle,lock:t.lock!==false,prompts:t.prompts,inputOrder:t.inputOrder||'de',status:'draft',createdAt:TS,...ownerData()});
   await db.ref('vt/keys/'+c).set(keys); await db.ref('vt/pins/'+c).set(newPin());
-  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',teacher:t.teacher||'',duration:t.duration,shuffle:!!t.shuffle,lock:t.lock!==false,prompts:t.prompts,inputOrder:t.inputOrder||'de',status:'draft',createdAt:TS});
   select(c); toast('Kopie angelegt – Code '+c);
 }
 async function del(){
@@ -484,6 +577,12 @@ $('pane').addEventListener('click',async e=>{
     case 'del': del(); break;
     case 'save': saveTest(sel); break;
     case 'csv': csv(); break;
+    case 'mkuser': mkUser(); break;
+    case 'allow': db.ref('vt/teachers/'+b.dataset.u).set(true); break;
+    case 'block': if(confirm(`${users[b.dataset.u]||'Diese Lehrkraft'} sperren? Sie sieht danach keine Tests mehr.`)) db.ref('vt/teachers/'+b.dataset.u).remove(); break;
+    case 'reset': auth.sendPasswordResetEmail(users[b.dataset.u]).then(()=>toast('Mail zum Zurücksetzen verschickt'),x=>alert('Fehler: '+(x.code||x.message))); break;
+    case 'copycred': navigator.clipboard&&navigator.clipboard.writeText(`Vokabeltests CJD Königswinter\nAdresse: ${new URL('lehrer.html',location.href).href}\nE-Mail: ${newCred.e}\nPasswort: ${newCred.p}\nBitte nach der ersten Anmeldung nicht weitergeben.`).then(()=>toast('Kopiert')); break;
+    case 'hidecred': newCred=null; renderPane(); break;
     case 'sync': try{localStorage.setItem('vt_sync',b.checked?'1':'0')}catch(e){} break;
     case 'print': printAll(); break;
     case 'closedet': selSub=null; renderRows(); renderDetail(); break;
