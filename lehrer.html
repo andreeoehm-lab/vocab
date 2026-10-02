@@ -50,6 +50,7 @@ h3{margin:22px 0 8px}
 .ed label{display:block;color:var(--mut);font-size:13px;margin:12px 0 4px}
 .ed label.chk{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px}
 .ed label.chk input{width:auto}
+.ed select{font:inherit;padding:7px 10px;border:1px solid #cfd5df;border-radius:8px;background:#fff;margin-left:8px}
 .g3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
 .g3 label{margin-top:0}
 code{background:#f1f3f7;padding:1px 5px;border-radius:4px}
@@ -112,14 +113,14 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
 
 <script>
 // ===== Firebase-Konfiguration eintragen (identisch in index.html) =====
-const firebaseConfig = {
-  apiKey: "AIzaSyBY_6OqGoHDyJB4SaCD_oj4qMW3O-jzNSE",
-  authDomain: "vokabeltests.firebaseapp.com",
-  databaseURL: "https://vokabeltests-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "vokabeltests",
-  storageBucket: "vokabeltests.firebasestorage.app",
-  messagingSenderId: "238017724845",
-  appId: "1:238017724845:web:b6f660616243bbce202124"
+const firebaseConfig={
+  apiKey:"AIzaSyBY_6OqGoHDyJB4SaCD_oj4qMW3O-jzNSE",
+  authDomain:"vokabeltests.firebaseapp.com",
+  databaseURL:"https://vokabeltests-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"vokabeltests",
+  storageBucket:"vokabeltests.firebasestorage.app",
+  messagingSenderId:"238017724845",
+  appId:"1:238017724845:web:b6f660616243bbce202124"
 };
 firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth(), db=firebase.database(), TS=firebase.database.ServerValue.TIMESTAMP;
@@ -229,15 +230,18 @@ function renderBody(){
 
 // ===== Editor =====
 function editor(code){
-  const t=code?tests[code]:{title:'',cls:'',duration:600,shuffle:true,prompts:[]};
-  const txt=(t.prompts||[]).map((p,i)=>`${p} = ${keys[i]??''}`).join('\n');
+  const t=code?tests[code]:{title:'',cls:'',duration:600,shuffle:true,prompts:[],inputOrder:lastOrder()};
+  const o=t.inputOrder==='en'?'en':'de';
+  const txt=(t.prompts||[]).map((p,i)=>o==='en'?`${keys[i]??''} = ${p}`:`${p} = ${keys[i]??''}`).join('\n');
   return `<div class="ed">
     <div class="g3"><label>Titel<input id="eT" value="${esc(t.title)}" placeholder="Unit 2 – At school"></label>
       <label>Lerngruppe<input id="eC" value="${esc(t.cls||'')}" placeholder="5f"></label>
       <label>Dauer (Min.)<input id="eD" type="number" min="1" max="180" step="0.5" value="${t.duration/60}"></label></div>
     <label class="chk"><input type="checkbox" id="eS" ${t.shuffle?'checked':''}> Reihenfolge für jede Person mischen</label>
-    <label>Vokabeln – eine pro Zeile: <code>Deutsch = Englisch</code> · mehrere richtige Lösungen mit <code>;</code> trennen · zwei Spalten aus Excel (Deutsch | Englisch) einfügen geht auch</label>
-    <textarea id="eV" rows="16" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="die Schule = school&#10;gehen = to go; go">${esc(txt)}</textarea>
+    <label>Eingabeformat der Liste <span class="mut">(abgefragt wird immer Deutsch → Englisch)</span>
+      <select id="eO"><option value="de" ${o==='de'?'selected':''}>Deutsch = Englisch</option><option value="en" ${o==='en'?'selected':''}>Englisch = Deutsch</option></select></label>
+    <label id="eL">${orderHint(o)}</label>
+    <textarea id="eV" rows="16" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="${orderPh(o)}">${esc(txt)}</textarea>
     <div class="acts"><button data-a="save" class="green">Speichern</button><span id="eP" class="mut"></span></div></div>`;
 }
 function parse(txt){
@@ -252,7 +256,23 @@ function parse(txt){
   });
   return {out,bad};
 }
-function upd(){const v=$('eV');if(!v)return;const r=parse(v.value),u=untypeable(r.out);
+// Eingabereihenfolge: 'de' = "Deutsch = Englisch", 'en' = "Englisch = Deutsch"
+const lastOrder=()=>{try{return localStorage.getItem('vt_order')==='en'?'en':'de'}catch(e){return 'de'}};
+const orderHint=o=>o==='en'
+  ?'Vokabeln – eine pro Zeile: <code>Englisch = Deutsch</code> · mehrere richtige englische Lösungen mit <code>;</code> trennen · zwei Spalten aus Excel (Englisch | Deutsch) einfügen geht auch'
+  :'Vokabeln – eine pro Zeile: <code>Deutsch = Englisch</code> · mehrere richtige englische Lösungen mit <code>;</code> trennen · zwei Spalten aus Excel (Deutsch | Englisch) einfügen geht auch';
+const orderPh=o=>o==='en'?'school = die Schule&#10;to go; go = gehen':'die Schule = school&#10;gehen = to go; go';
+const ord=()=>($('eO')&&$('eO').value==='en')?'en':'de';
+// liefert Paare immer als [Deutsch, Englisch]
+function readPairs(){const r=parse($('eV').value);if(ord()==='en')r.out=r.out.map(([a,b])=>[b,a]);return r}
+function changeOrder(){
+  const v=$('eV'), o=ord();
+  v.value=v.value.split(/\r?\n/).map(l=>{const p=parse(l).out[0];return p?`${p[1]} = ${p[0]}`:l}).join('\n');
+  $('eL').innerHTML=orderHint(o); v.placeholder=orderPh(o).replace('&#10;','\n');
+  try{localStorage.setItem('vt_order',o)}catch(e){}
+  edDirty=true; upd();
+}
+function upd(){const v=$('eV');if(!v)return;const r=readPairs(),u=untypeable(r.out);
   $('eP').textContent=`${r.out.length} Vokabeln erkannt`+(r.bad.length?` · Zeile ${r.bad.join(', ')} ohne „=“`:'')+(u.length?` · ⚠ Vokabel ${u.join(', ')}: englische Lösung enthält Zeichen, die die Schülertastatur nicht hat`:'')}
 // Zeichen, die die Schüler-Tastatur (englisch, ohne Umlaute) tippen kann
 const TYPEABLE=/^[A-Za-z0-9 \-',.?!()\/;]*$/;
@@ -264,7 +284,7 @@ async function newCode(){
 }
 async function saveTest(code){
   const title=$('eT').value.trim(), cls=$('eC').value.trim(), dur=Math.round(parseFloat($('eD').value)*60), shuffle=$('eS').checked;
-  const {out,bad}=parse($('eV').value);
+  const {out,bad}=readPairs(), inputOrder=ord();
   if(!title) return alert('Bitte einen Titel eingeben.');
   if(!(dur>=30)) return alert('Bitte eine gültige Dauer eingeben.');
   if(!out.length) return alert('Keine Vokabeln erkannt.');
@@ -277,12 +297,12 @@ async function saveTest(code){
       if(!keysOk) return;
       if(Object.keys(subs).length&&!confirm('Es gibt schon Teilnahmen. Änderungen an Anzahl/Reihenfolge der Vokabeln verfälschen die Auswertung. Trotzdem speichern?')) return;
       await db.ref('vt/keys/'+code).set(key);
-      await db.ref('vt/tests/'+code).update({title,cls,duration:dur,shuffle,prompts});
+      await db.ref('vt/tests/'+code).update({title,cls,duration:dur,shuffle,prompts,inputOrder});
       edDirty=false; toast('Gespeichert');
     } else {
       const c=await newCode();
       await db.ref('vt/keys/'+c).set(key);
-      await db.ref('vt/tests/'+c).set({title,cls,duration:dur,shuffle,prompts,status:'draft',createdAt:TS});
+      await db.ref('vt/tests/'+c).set({title,cls,duration:dur,shuffle,prompts,inputOrder,status:'draft',createdAt:TS});
       select(c); toast('Gespeichert – Code '+c);
     }
   }catch(e){alert('Fehler beim Speichern: '+(e.code||e.message))}
@@ -381,7 +401,7 @@ $('ov').onclick=()=>$('ov').hidden=true;
 async function dup(){
   if(!keysOk) return; const t=tests[sel], c=await newCode();
   await db.ref('vt/keys/'+c).set(keys);
-  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',duration:t.duration,shuffle:!!t.shuffle,prompts:t.prompts,status:'draft',createdAt:TS});
+  await db.ref('vt/tests/'+c).set({title:t.title+' (Kopie)',cls:t.cls||'',duration:t.duration,shuffle:!!t.shuffle,prompts:t.prompts,inputOrder:t.inputOrder||'de',status:'draft',createdAt:TS});
   select(c); toast('Kopie angelegt – Code '+c);
 }
 async function del(){
@@ -391,6 +411,7 @@ async function del(){
   await db.ref().update({['vt/tests/'+c]:null,['vt/keys/'+c]:null,['vt/subs/'+c]:null,['vt/grades/'+c]:null});
   toast('Gelöscht');
 }
+$('pane').addEventListener('change',e=>{if(e.target.id==='eO')changeOrder()});
 $('pane').addEventListener('input',e=>{if(e.target.id==='eV'){edDirty=true;upd()}else if(e.target.closest('.ed'))edDirty=true});
 $('pane').addEventListener('click',async e=>{
   const b=e.target.closest('[data-a],[data-t],[data-g],[data-s]'); if(!b) return;
