@@ -349,6 +349,15 @@ document.addEventListener('visibilitychange',()=>{
 
 // ===== Start =====
 buildKb();
+// Test-Code aus dem QR-Code (…/?c=K7QM) vorbelegen – bleibt im Feld änderbar
+try{const c=(new URLSearchParams(location.search).get('c')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(/^[A-Z0-9]{3,8}$/.test(c)) vals.code=c;
+  if(location.search) history.replaceState(null,'',location.pathname);}catch(e){}
+// Test-Code aus dem QR-Code (…/?c=K7QM) übernehmen und aus der Adresszeile entfernen
+try{const c=(new URLSearchParams(location.search).get('c')||'').toUpperCase();
+  if(/^[A-Z0-9]{3,8}$/.test(c)) vals.code=c;
+  if(location.search) history.replaceState(null,'',location.pathname+location.hash);
+}catch(e){}
 const saved=LS.get(K);
 if(saved&&saved.subId){
   run=saved;
