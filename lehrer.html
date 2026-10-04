@@ -102,7 +102,8 @@ button.g.man{box-shadow:0 0 0 3px #1c223066}
   #print{display:block;font-size:12pt}
   .pg{page-break-after:always}
   .pg table{border-collapse:collapse;width:100%}
-  .pg th,.pg td{border:1px solid #999;padding:4px 6px;text-align:left}
+  .pg th,.pg td{border:1px solid #999;padding:4px 6px;text-align:left;overflow-wrap:anywhere;word-break:break-word}
+  .pg table{table-layout:fixed}.pg th:first-child{width:7%}.pg th:last-child{width:6%}
   .pg table{page-break-inside:auto}.pg tr{page-break-inside:avoid}
   .sig{margin-top:14mm;border:1px solid #999;padding:4mm 5mm;page-break-inside:avoid}
   .sigt{font-weight:700;margin-bottom:2mm}
@@ -193,7 +194,7 @@ function score(given,key){
 }
 
 // ===== State =====
-let me=null, users={}, teachers={}, approved=false, teamView=false, newCred=null, isAdmin=false, showAll=false, tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, accept={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
+let testsQ=null, me=null, users={}, teachers={}, approved=false, teamView=false, newCred=null, isAdmin=false, showAll=false, tests={}, sel=null, creating=false, tab='res', subs={}, grades={}, accept={}, keys=[], keysOk=false, pin=null, edDirty=false, selSub=null, L=[];
 function detach(){L.forEach(([r,fn])=>r.off('value',fn));L=[]}
 function listen(path,cb){const r=db.ref(path);const fn=r.on('value',s=>cb(s.val()));L.push([r,fn])}
 const toArr=v=>Array.isArray(v)?v:v?Object.keys(v).sort((a,b)=>a-b).map(k=>v[k]):[];
@@ -216,14 +217,18 @@ auth.onAuthStateChanged(u=>{
       }
       $('scope').hidden=!isAdmin; $('team').hidden=!isAdmin; $('new').hidden=!approved;
       $('who').textContent=u.email+(isAdmin?' (Admin)':'');
+      // Testliste: Admin liest alle, Lehrkräfte nur ihre eigenen (Regel erlaubt nur diese Abfrage)
+      if(approved){
+        testsQ=isAdmin?db.ref('vt/tests'):db.ref('vt/tests').orderByChild('owner').equalTo(u.uid);
+        testsQ.on('value',s=>{
+          tests=s.val()||{}; claim(); renderList();
+          if(sel){ if(!tests[sel]){detach();sel=null;renderPane()} else renderHead() }
+        },e=>toast('Tests konnten nicht geladen werden ('+(e.code||e.message)+')'));
+      }
       claim(); renderList(); renderPane();
     });
-    db.ref('vt/tests').on('value',s=>{
-      tests=s.val()||{}; claim(); renderList();
-      if(sel){ if(!tests[sel]){detach();sel=null;renderPane()} else renderHead() }
-    });
     renderPane();
-  } else { db.ref('vt/tests').off(); db.ref('vt/users').off(); db.ref('vt/teachers').off(); users={}; teachers={}; approved=false; teamView=false; $('team').hidden=true; detach(); sel=null; creating=false; me=null; isAdmin=false; showAll=false; $('scope').hidden=true; }
+  } else { if(testsQ){testsQ.off();testsQ=null} tests={}; db.ref('vt/users').off(); db.ref('vt/teachers').off(); users={}; teachers={}; approved=false; teamView=false; $('team').hidden=true; detach(); sel=null; creating=false; me=null; isAdmin=false; showAll=false; $('scope').hidden=true; }
 });
 
 // ===== Liste =====
@@ -265,7 +270,8 @@ function select(code){
 function renderPane(){
   const p=$('pane');
   if(teamView&&isAdmin){p.innerHTML=teamHtml();return}
-  if(me&&!approved&&!isAdmin){p.innerHTML='<h2>Noch nicht freigeschaltet</h2><p class="mut">Dein Zugang muss erst von der Administration freigeschaltet werden. Bitte melde dich danach neu an.</p>';return}
+  if(me&&!approved&&!isAdmin){p.innerHTML=`<h2>Noch nicht freigeschaltet</h2><p class="mut">Dein Zugang muss erst von der Administration freigeschaltet werden. Bitte melde dich danach neu an.</p>
+    <p class="mut">Deine Nutzer-UID (für die Administration):<br><code style="font-size:15px;user-select:all">${esc(me.uid)}</code> <button data-a="copyuid">Kopieren</button></p>`;return}
   if(creating){p.innerHTML='<h2>Neuer Test</h2>'+editor(null);upd();return}
   if(!sel){p.innerHTML='<p class="mut">Links einen Test wählen oder „+ Neuer Test“.</p>';return}
   p.innerHTML='<div id="ph"></div><div id="pb"></div>'; renderHead(); renderBody();
@@ -344,7 +350,8 @@ const newPin=()=>String(Math.floor(1000+Math.random()*9000));
 async function newCode(){
   const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for(;;){let c='';for(let i=0;i<4;i++)c+=A[Math.floor(Math.random()*A.length)];
-    if(!(await db.ref('vt/tests/'+c).get()).exists()) return c;}
+    // leer = frei; Zugriff verweigert = existiert (fremder Entwurf) → neu würfeln
+    try{if(!(await db.ref('vt/tests/'+c).get()).exists()) return c}catch(e){}}
 }
 async function saveTest(code){
   const title=$('eT').value.trim(), cls=$('eC').value.trim(), teacher=$('eK').value.trim().toUpperCase().slice(0,10), dur=Math.round(parseFloat($('eD').value)*60), shuffle=$('eS').checked, lock=$('eL1').checked;
@@ -459,7 +466,8 @@ setInterval(()=>{if(sel&&tab==='res'&&$('rb')&&Object.values(subs).some(s=>s.sta
 
 function csv(){
   const t=tests[sel], n=keys.length, P=t.prompts||[];
-  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  // Formel-Injektion verhindern: Felder, die mit = + - @ beginnen, als Text kennzeichnen
+  const q=v=>{let x=String(v??'');if(/^[=+\-@\t\r]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"'};
   const head=['Name','Status','Fehler','Punkte','Max','App-Wechsel','Start','Abgabe','Gerät','Hinweis'];
   for(let i=0;i<n;i++) head.push(`${i+1}: ${P[i]}`,`${i+1}: Wertung`);
   const rows=[head];
@@ -578,6 +586,7 @@ $('pane').addEventListener('click',async e=>{
     case 'save': saveTest(sel); break;
     case 'csv': csv(); break;
     case 'mkuser': mkUser(); break;
+    case 'copyuid': navigator.clipboard&&navigator.clipboard.writeText(me.uid).then(()=>toast('UID kopiert')); break;
     case 'allow': db.ref('vt/teachers/'+b.dataset.u).set(true); break;
     case 'block': if(confirm(`${users[b.dataset.u]||'Diese Lehrkraft'} sperren? Sie sieht danach keine Tests mehr.`)) db.ref('vt/teachers/'+b.dataset.u).remove(); break;
     case 'reset': auth.sendPasswordResetEmail(users[b.dataset.u]).then(()=>toast('Mail zum Zurücksetzen verschickt'),x=>alert('Fehler: '+(x.code||x.message))); break;

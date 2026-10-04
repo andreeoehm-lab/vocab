@@ -17,10 +17,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);box-shadow:0 1px 4px #0002;z-index:2}
 header .logo{height:34px;width:auto;flex:none}
-#hT{font:700 15px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:6px 9px;border-radius:8px;background:#e3e7ee;color:var(--ink)}
-#hT:empty{display:none}
+#hTitle{font-weight:500}
+.tk{font-weight:800}
+.thead .tk{color:var(--ink);font-size:inherit}
 .thead{max-width:900px;margin:0 auto 12px;padding:12px 14px;background:var(--card);border-radius:12px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
-.thead b{font-size:20px}
+.thead .tt{font-size:20px}
 .thead span{color:var(--mut);font-size:15px}
 header .t{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hName{color:var(--mut);font-size:16px}
@@ -73,7 +74,7 @@ button.sec{background:#e3e7ee;color:var(--ink)}
 <body>
 <div id="app">
   <header id="hd" hidden>
-    <span id="hLogo"></span><div class="t" id="hTitle"></div><div id="hT"></div><div id="hName"></div><div id="timer">--:--</div>
+    <span id="hLogo"></span><div class="t" id="hTitle"></div><div id="hName"></div><div id="timer">--:--</div>
     <button class="hb" id="btnSubmit">Abgeben</button>
   </header>
   <main id="main"></main>
@@ -117,6 +118,8 @@ document.addEventListener('error',e=>{const t=e.target;
 // bereits vor dem Skript fehlgeschlagene Logos (statisches HTML) nachträglich umleiten
 document.querySelectorAll('img.logo').forEach(i=>{if(i.complete&&!i.naturalWidth){i.dataset.f=1;i.src=LOGO_REMOTE}});
 
+// Titel mit Lehrerkürzel: <b>OEM</b> - Testname
+const ttl=(title,teacher)=>(teacher?`<span class="tk">${esc(teacher)}</span> - `:'')+esc(title);
 // ===== Bildschirmtastatur =====
 // Englische Tastatur (QWERTY), keine Umlaute
 const ROWS=[
@@ -234,10 +237,12 @@ async function doLogin(){
   if(!/^[A-Z0-9]{3,8}$/.test(code)) return err('Bitte gültigen Code eingeben.');
   if(!name) return err('Bitte Vornamen eingeben.');
   err('Suche Test …');
-  let s; try{s=await db.ref('vt/tests/'+code).get()}catch(e){return err('Keine Verbindung zum Server.')}
-  if(!s.exists()) return err('Diesen Code gibt es nicht.');
+  const NA='Code unbekannt oder Test nicht freigegeben.';
+  let s; try{s=await db.ref('vt/tests/'+code).get()}
+  catch(e){return err(/permission/i.test((e.code||'')+' '+(e.message||''))?NA:'Keine Verbindung zum Server.')}
+  if(!s.exists()) return err(NA);
   const t=s.val();
-  if(t.status!=='open') return err('Der Test ist gerade nicht freigegeben.');
+  if(t.status!=='open') return err(NA);
   unlocked=false;
   if(t.lock!==false&&LS.get(lockKey(code))) return showPin(code,name,t);
   showReady(code,name,t);
@@ -247,7 +252,7 @@ let pinCtx=null;
 function showPin(code,name,t){
   screen='pin'; pinCtx={code,name,t}; vals.pin='';
   main.innerHTML=`<div class="card"><div class="brand">${logo()}<h1>Schon geschrieben</h1></div>
-    <p class="info">Auf diesem Gerät wurde der Test <b>${esc(t.title)}</b> bereits geschrieben.<br>Soll eine weitere Person ihn hier schreiben, gibt die Lehrkraft die PIN ein.</p>
+    <p class="info">Auf diesem Gerät wurde der Test „${ttl(t.title,t.teacher)}“ bereits geschrieben.<br>Soll eine weitere Person ihn hier schreiben, gibt die Lehrkraft die PIN ein.</p>
     <label>PIN der Lehrkraft</label><div class="field" data-f="pin" data-ph="4 Ziffern"></div>
     <button class="big" id="pg">Freigeben</button><button class="big sec" id="bk">Zurück</button><div class="err" id="err"></div></div>`;
   fieldOrder=['pin']; renderField('pin'); setFocus('pin');
@@ -266,7 +271,7 @@ function showReady(code,name,t){
   screen='ready'; kbOff();
   const n=(t.prompts||[]).length;
   main.innerHTML=`<div class="card"><div class="brand">${logo()}<h1>Hallo ${esc(name)}!</h1></div>
-    <p><b>${esc(t.title)}</b><br><span class="info">${t.teacher?`Lehrkraft: ${esc(t.teacher)} · `:''}${n} Vokabeln · ${fmt(t.duration)} Minuten</span></p>
+    <p>${ttl(t.title,t.teacher)}<br><span class="info">${n} Vokabeln · ${fmt(t.duration)} Minuten</span></p>
     <p class="info">Die Zeit läuft ab „Start“. Wenn sie abgelaufen ist, wird dein Test automatisch abgegeben.<br>Übersetze die deutschen Wörter ins Englische.<br>Groß- und Kleinschreibung zählt.</p>
     <button class="big" id="st">Start</button><button class="big sec" id="bk">Zurück</button><div class="err" id="err"></div></div>`;
   $('bk').onclick=()=>showLogin();
@@ -285,8 +290,8 @@ async function start(code,name,t){
 }
 function showTest(){
   screen='test'; $('hd').hidden=false;
-  $('hLogo').innerHTML=logo(); $('hTitle').textContent=run.title; $('hT').textContent=run.teacher||''; $('hName').textContent=run.name;
-  main.innerHTML=`<div class="thead"><b>${esc(run.title)}</b>${run.teacher?`<span>Lehrkraft: <b style="font-size:inherit;color:var(--ink)">${esc(run.teacher)}</b></span>`:''}<span>CJD Königswinter</span><span>${esc(run.name)}</span></div>`+'<div class="list"><div class="row hdr"><div></div><div class="p">Deutsch</div><div>Englisch</div></div>'+run.order.map((i,p)=>
+  $('hLogo').innerHTML=logo(); $('hTitle').innerHTML=ttl(run.title,run.teacher); $('hName').textContent=run.name;
+  main.innerHTML=`<div class="thead"><div class="tt">${ttl(run.title,run.teacher)}</div><span>CJD Königswinter</span><span>${esc(run.name)}</span></div>`+'<div class="list"><div class="row hdr"><div></div><div class="p">Deutsch</div><div>Englisch</div></div>'+run.order.map((i,p)=>
     `<div class="row"><div class="n">${p+1}</div><div class="p">${esc(run.prompts[i])}</div><div class="field" data-f="a${i}"></div></div>`
   ).join('')+'<button class="big" id="sub2">Abgeben</button></div>';
   run.order.forEach(i=>vals['a'+i]=run.answers[i]||'');
@@ -296,7 +301,9 @@ function showTest(){
   clearInterval(tmr); tmr=setInterval(tick,250); tick();
   if(statusRef) statusRef.off();
   statusRef=db.ref(`vt/tests/${run.code}/status`);
-  statusRef.on('value',s=>{if(run&&!run.submitted&&s.val()!=='open')submit(true,'beendet')});
+  // Beendet die Lehrkraft den Test, entfällt die Leseberechtigung → ebenfalls als „beendet“ werten
+  statusRef.on('value',s=>{if(run&&!run.submitted&&s.val()!=='open')submit(true,'beendet')},
+    ()=>{statusRef=null;if(run&&!run.submitted)submit(true,'beendet')});
 }
 function tick(){
   if(!run||run.submitted) return;
@@ -328,7 +335,7 @@ async function submit(auto,why){
 function showDone(){
   screen='done'; kbOff(); $('hd').hidden=true;
   main.innerHTML=`<div class="card done"><div class="brand">${logo()}</div><div class="ic">✓</div><h1>Abgegeben</h1><p>Danke, ${esc(run.name)}!</p>
-    <p class="info">${esc(run.title)}${run.teacher?' · '+esc(run.teacher):''}</p><button class="big sec" id="nx">Nächste Person</button></div>`;
+    <p class="info">${ttl(run.title,run.teacher)}</p><button class="big sec" id="nx">Nächste Person</button></div>`;
   $('nx').onclick=resetForNext;
 }
 function resetForNext(){
