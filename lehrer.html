@@ -152,6 +152,9 @@ const firebaseConfig={
   appId:"1:238017724845:web:b6f660616243bbce202124"
 };
 firebase.initializeApp(firebaseConfig);
+// Online-Adresse der Apps – wird genutzt, wenn lehrer.html lokal (file://) geöffnet ist
+const SITE_URL='https://andreeoehm-lab.github.io/vocab/';
+const siteUrl=f=>/^https?:$/.test(location.protocol)?new URL(f,location.href).href:new URL(f,SITE_URL).href;
 const auth=firebase.auth(), db=firebase.database(), TS=firebase.database.ServerValue.TIMESTAMP;
 let off=0; db.ref('.info/serverTimeOffset').on('value',s=>off=s.val()||0);
 const $=id=>document.getElementById(id);
@@ -315,7 +318,7 @@ function editor(code){
       <select id="eO"><option value="de" ${o==='de'?'selected':''}>Deutsch = Englisch</option><option value="en" ${o==='en'?'selected':''}>Englisch = Deutsch</option></select></label>
     <label id="eL">${orderHint(o)}</label>
     <textarea id="eV" rows="16" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="${orderPh(o)}">${esc(txt)}</textarea>
-    <div class="acts"><button data-a="save" class="green">Speichern</button><span id="eP" class="mut"></span></div></div>`;
+    <div class="acts"><button data-a="save" class="green">Speichern</button><button data-a="anton" title="Bild-Markierungen, Grammatik-Hinweise und Störzeichen entfernen, optionale Teile als Alternativen">ANTON-Liste bereinigen</button><span id="eP" class="mut"></span></div></div>`;
 }
 function parse(txt){
   const out=[],bad=[];
@@ -345,6 +348,36 @@ function changeOrder(){
   $('eL').innerHTML=orderHint(o); v.placeholder=orderPh(o).replace('&#10;','\n');
   try{localStorage.setItem('vt_order',o)}catch(e){}
   edDirty=true; upd();
+}
+// ===== ANTON-Import: Liste im Format "Englisch = Deutsch [[image=…]]" bereinigen =====
+const GRAMMAR=/^(no pl\.?|pl\.?|pl\.? .+|sg\.?|informal|formal|infml|fml|AE|BE|AmE|BrE|irr\.?|irregular|n|v|adj|adv|prep)$/i;
+const tidy=x=>x.replace(/\s+/g,' ').replace(/\s+([,;:!?)]|\.(?!\.))/g,'$1').replace(/\(\s+/g,'(').trim();
+function antonEnglish(en){
+  en=en.replace(/\[\[[^\]]*\]\]/g,'').replace(/^[\s·•*\-–]+/,'');
+  // Grammatik-Hinweise in Klammern entfernen
+  en=en.replace(/\(([^()]*)\)/g,(m,c)=>GRAMMAR.test(c.trim())?'':m);
+  let alts=[];
+  // Abkürzung in Klammern am Ende, z. B. "bed and breakfast (B & B)" → eigene Alternative
+  en=en.replace(/\s*\(([A-Z][A-Z .&]*)\)\s*$/,(m,c)=>{alts.push(c);return ''});
+  // optionale Teile: "to climb (up)" → "to climb" + "to climb up"; "(sb)", "(sth to sth)" ebenso
+  let vars=[en];
+  for(let k=0;k<3&&vars.some(v=>/\([^()]*\)/.test(v));k++)
+    vars=vars.flatMap(v=>{const m=v.match(/\(([^()]*)\)/);return m?[v.replace(m[0],''),v.replace(m[0],m[1])]:[v]});
+  alts=[...vars,...alts].map(tidy).filter(Boolean);
+  // nur auf der Schülertastatur tippbare Varianten behalten (mind. eine bleibt)
+  const ok=alts.filter(a=>TYPEABLE.test(a));
+  return [...new Set(ok.length?ok:alts)].join('; ');
+}
+function antonClean(){
+  const v=$('eV'); let n=0;
+  // Format erzwingen: Englisch = Deutsch (ohne den Inhalt zu tauschen)
+  if($('eO').value!=='en'){ $('eO').value='en'; $('eL').innerHTML=orderHint('en'); v.placeholder=orderPh('en').replace('&#10;','\n'); try{localStorage.setItem('vt_order','en')}catch(e){} }
+  v.value=v.value.split(/\r?\n/).map(l=>{
+    const i=l.indexOf('='); if(i<0) return l.replace(/\[\[[^\]]*\]\]/g,'').trim();
+    const en=antonEnglish(l.slice(0,i)), de=tidy(l.slice(i+1).replace(/\[\[[^\]]*\]\]/g,''));
+    const out=`${en} = ${de}`; if(out!==l.trim()) n++; return out;
+  }).join('\n');
+  edDirty=true; upd(); toast(n?`${n} Zeilen bereinigt – bitte kurz prüfen`:'Nichts zu bereinigen');
 }
 function upd(){const v=$('eV');if(!v)return;const r=readPairs(),u=untypeable(r.out);
   $('eP').textContent=`${r.out.length} Vokabeln erkannt`+(r.bad.length?` · Zeile ${r.bad.join(', ')} ohne „=“`:'')+(u.length?` · ⚠ Vokabel ${u.join(', ')}: englische Lösung enthält Zeichen, die die Schülertastatur nicht hat`:'')}
@@ -512,7 +545,7 @@ function teamHtml(){
   const ids=[...new Set([...Object.keys(users),...Object.keys(teachers)])]
     .sort((a,b)=>(users[a]||'').localeCompare(users[b]||'','de'));
   const cnt=uid=>Object.values(tests).filter(t=>t.owner===uid).length;
-  const loginUrl=new URL('lehrer.html',location.href).href;
+  const loginUrl=siteUrl('lehrer.html');
   return `<h2>Kolleg:innen</h2>
     <h3>Neuen Zugang anlegen</h3>
     <div class="g3" style="grid-template-columns:2fr 1fr auto;align-items:end">
@@ -555,7 +588,7 @@ $('team').onclick=()=>{detach();sel=null;creating=false;teamView=true;newCred=nu
 
 // ===== Aktionen =====
 function showBig(){
-  const u=new URL('./',location.href).href;
+  const u=siteUrl('./');
   let qr='';
   try{const q=qrcode(0,'M');q.addData(u+'?c='+encodeURIComponent(sel));q.make();qr=q.createSvgTag({cellSize:4,margin:2,scalable:true})}catch(e){}
   $('ov').innerHTML=`<div class="ovl">${logo()}<div class="ovt">${tests[sel].teacher?`<b>${esc(tests[sel].teacher)}</b> - `:''}${esc(tests[sel].title)}</div>
@@ -595,12 +628,13 @@ $('pane').addEventListener('click',async e=>{
     case 'del': del(); break;
     case 'save': saveTest(sel); break;
     case 'csv': csv(); break;
+    case 'anton': antonClean(); break;
     case 'mkuser': mkUser(); break;
     case 'copyuid': navigator.clipboard&&navigator.clipboard.writeText(me.uid).then(()=>toast('UID kopiert')); break;
     case 'allow': db.ref('vt/teachers/'+b.dataset.u).set(true); break;
     case 'block': if(confirm(`${users[b.dataset.u]||'Diese Lehrkraft'} sperren? Sie sieht danach keine Tests mehr.`)) db.ref('vt/teachers/'+b.dataset.u).remove(); break;
     case 'reset': auth.sendPasswordResetEmail(users[b.dataset.u]).then(()=>toast('Mail zum Zurücksetzen verschickt'),x=>alert('Fehler: '+(x.code||x.message))); break;
-    case 'copycred': navigator.clipboard&&navigator.clipboard.writeText(`Vokabeltests CJD Königswinter\nAdresse: ${new URL('lehrer.html',location.href).href}\nE-Mail: ${newCred.e}\nPasswort: ${newCred.p}\nBitte nach der ersten Anmeldung nicht weitergeben.`).then(()=>toast('Kopiert')); break;
+    case 'copycred': navigator.clipboard&&navigator.clipboard.writeText(`Vokabeltests CJD Königswinter\nAdresse: ${siteUrl('lehrer.html')}\nE-Mail: ${newCred.e}\nPasswort: ${newCred.p}\nBitte nach der ersten Anmeldung nicht weitergeben.`).then(()=>toast('Kopiert')); break;
     case 'hidecred': newCred=null; renderPane(); break;
     case 'sync': try{localStorage.setItem('vt_sync',b.checked?'1':'0')}catch(e){} break;
     case 'print': printAll(); break;
