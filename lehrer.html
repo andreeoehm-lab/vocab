@@ -530,6 +530,7 @@ function printAll(){
     return `<div class="pg"><div class="pgh">${logo()}<div class="r">CJD Königswinter<br>Vokabeltest Englisch${t.teacher?' · '+esc(t.teacher):''}</div></div>
       <h2>${esc(t.title)}</h2><p>${esc(s.name)} · ${esc(t.cls||'')} · ${s.submittedAt?new Date(s.submittedAt).toLocaleDateString('de-DE'):''}</p>
       <p><b>${f(e.err)} Fehler</b> – ${f(n-e.err)} von ${n} Punkten</p>
+      ${e.lrs?'<p><i>Gemäß LRS-Erlass wurden Rechtschreibfehler nicht bewertet.</i></p>':''}
       <table><tr><th>#</th><th>Deutsch</th><th>Deine Antwort</th><th>Englisch (Lösung)</th><th></th></tr>
       ${e.items.map(x=>`<tr><td>${x.i+1}</td><td>${esc(P[x.i])}</td><td>${esc(x.ans)}</td><td>${esc(keys[x.i])}</td><td>${sym(x.val)}</td></tr>`).join('')}</table>
       <div class="sig"><div class="sigt">Kenntnisnahme der Erziehungsberechtigten</div>
