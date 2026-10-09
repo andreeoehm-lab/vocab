@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OEM · Task 1 · Screen time (student version)</title>
+<style>
+  :root {
+    --ink: #101b33;
+    --ink-soft: #4a566e;
+    --paper: #f3f5f8;
+    --card: #ffffff;
+    --line: #cfd6e2;
+    --brick: #b84a33;
+    --teal: #227382;
+    --ochre: #e0a526;
+    --violet: #5b5ba8;
+    --olive: #62743f;
+    --good: #1f7a4d;
+    --warn: #8a5a00;
+    --thumb: 30px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 48px; }
+
+  header h1 {
+    font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    font-size: clamp(28px, 4.2vw, 42px); line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+  .meta { font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
+
+  /* ---------- film strip (the one memorable element) ---------- */
+  .strip {
+    margin: 26px 0 8px; background: var(--ink); border-radius: 6px; padding: 0;
+  }
+  .perf {
+    height: 18px;
+    background:
+      linear-gradient(90deg, var(--paper) 11px, transparent 11px) 6px 50% / 24px 8px repeat-x;
+  }
+  .frame {
+    display: flex; height: 112px; margin: 0 14px; background: #1b2848; overflow: hidden; border-radius: 2px;
+  }
+  .seg {
+    position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: center;
+    align-items: center; text-align: center; color: #fff; overflow: hidden;
+    border-right: 3px solid var(--ink);
+    transition: flex-basis .12s ease-out;
+  }
+  .seg:last-child { border-right: 0; }
+  .seg .pct { font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .seg .nm { font-size: 13px; margin-top: 6px; padding: 0 4px; line-height: 1.15; }
+  .seg.dark { color: var(--ink); }
+  .seg.small .nm { display: none; }
+  .seg.tiny .pct { font-size: 14px; }
+  .seg.tiny .nm { display: none; }
+  .seg.hide { color: transparent; }
+  .seg.free {
+    background: repeating-linear-gradient(135deg, #2a3a63 0 8px, #22305a 8px 16px);
+    color: #c6d0e6;
+  }
+  .runtime { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); margin: 0 2px 18px; }
+
+  /* ---------- summary + controls ---------- */
+  .bar-info {
+    display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .total { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .total small { font-size: 16px; font-weight: 400; color: var(--ink-soft); margin-left: 8px; }
+  .total.full { color: var(--good); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; font-weight: 600; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track {
+    width: 56px; height: 32px; border-radius: 16px; background: #b7c0d1; position: relative; flex: none;
+    transition: background .15s;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; left: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(16,27,51,.4);
+  }
+  .switch input:checked + .track { background: var(--teal); }
+  .switch input:checked + .track::after { transform: translateX(24px); }
+  .switch input:focus-visible + .track { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+  button {
+    font: inherit; font-weight: 600; color: var(--ink); background: var(--card);
+    border: 2px solid var(--ink); border-radius: 8px; padding: 8px 16px; cursor: pointer; min-height: 44px;
+  }
+  button:hover { background: #e4e9f1; }
+  button:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  /* ---------- rows ---------- */
+  .rows { display: grid; gap: 14px; }
+  .row {
+    display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(0, 2.4fr) 118px; gap: 8px 22px;
+    align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px 14px 0; border-left: 10px solid var(--c);
+  }
+  .row .lab { padding-left: 14px; }
+  .row .lab b { display: block; font-size: 19px; }
+  .row .lab span { display: block; font-size: 14px; color: var(--ink-soft); line-height: 1.3; }
+  .val { text-align: right; font-variant-numeric: tabular-nums; }
+  .val .n { font-size: 34px; font-weight: 700; line-height: 1; }
+  .val .n i { font-style: normal; font-size: 20px; font-weight: 600; margin-left: 2px; }
+  .val .m { font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
+
+
+  /* slider */
+  .slide { position: relative; height: 44px; }
+  .slide .rail {
+    position: absolute; left: calc(var(--thumb) / 2); right: calc(var(--thumb) / 2); top: 50%;
+    height: 12px; margin-top: -6px; border-radius: 6px; background: #dfe5ef;
+  }
+  .slide .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--c); width: 0; }
+  .slide input[type=range] {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: transparent;
+    -webkit-appearance: none; appearance: none; cursor: pointer; touch-action: pan-y;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 44px; background: transparent; }
+  input[type=range]::-moz-range-track { height: 44px; background: transparent; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: var(--thumb); height: var(--thumb); border-radius: 50%; margin-top: 7px;
+    background: #fff; border: 5px solid var(--c); box-shadow: 0 1px 4px rgba(16,27,51,.45);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: calc(var(--thumb) - 10px); height: calc(var(--thumb) - 10px); border-radius: 50%;
+    background: #fff; border: 5px solid var(--c); box-shadow: 0 1px 4px rgba(16,27,51,.45);
+  }
+  input[type=range]:focus-visible { outline: none; }
+  input[type=range]:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--ink); outline-offset: 2px; }
+  input[type=range]:focus-visible::-moz-range-thumb { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-soft); padding: 0 calc(var(--thumb) / 2); margin-top: -2px; }
+
+  /* teacher settings */
+  details { margin-top: 26px; font-size: 15px; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); }
+  .ranges { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 20px; margin-top: 12px; }
+  .ranges label { display: grid; gap: 4px; font-weight: 600; }
+  .ranges .pair { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+  .ranges input[type=number] {
+    width: 72px; font: inherit; padding: 6px 8px; border: 2px solid var(--line); border-radius: 6px; background: #fff;
+  }
+  .ranges input[type=number]:focus-visible { outline: 3px solid var(--teal); outline-offset: 1px; }
+  .foot { margin-top: 18px; font-size: 13px; color: var(--ink-soft); max-width: 70ch; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 760px) {
+    .row { grid-template-columns: 1fr auto; padding-right: 14px; }
+    .row .slide { grid-column: 1 / 3; }
+    .val { grid-row: 1; grid-column: 2; }
+    .frame { height: 92px; }
+    .seg .pct { font-size: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .seg, .switch .track, .switch .track::after { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="meta">OEM · History · Task 1 · Source criticism</div>
+    <h1>Where does the screen time go?</h1>
+    <p>Estimate how much of the episode “Robert Blum und die Revolution” (about 44 minutes) each building block fills. Move the sliders until all 100&nbsp;% are used. You cannot give out more than 100&nbsp;%.</p>
+  </header>
+
+  <section aria-label="Distribution of the running time">
+    <div class="strip">
+      <div class="perf" aria-hidden="true"></div>
+      <div class="frame" id="frame" role="img" aria-label="Running time split into your five shares"></div>
+      <div class="perf" aria-hidden="true"></div>
+    </div>
+    <div class="runtime" aria-hidden="true"><span>0:00</span><span>11:00</span><span>22:00</span><span>33:00</span><span>44:00</span></div>
+  </section>
+
+  <div class="bar-info">
+    <div class="total" id="total" aria-live="polite"></div>
+    <div class="controls">
+      <button type="button" id="reset">Reset</button>
+    </div>
+  </div>
+
+  <div class="rows" id="rows"></div>
+
+  <p class="foot">Tip for counting: assign each moment to the dominant image, not to the sound. Narration over a reenactment counts as “reenactment”.</p>
+</div>
+
+<script>
+(function () {
+  var RUNTIME = 44; // minutes
+  var CATS = [
+    { name: 'Reenactments',                 hint: 'Actors play events; dialogue is written for them.',     c: '#b84a33', light: false },
+    { name: 'Pictures and written sources', hint: 'Paintings, drawings, letters, documents.',              c: '#227382', light: false },
+    { name: 'Maps and animations',          hint: 'Computer animations, maps, graphics.',                  c: '#e0a526', light: true  },
+    { name: 'Expert statements',            hint: 'Talking heads: historians in interview.',               c: '#5b5ba8', light: false },
+    { name: 'Narrator only',                hint: 'Voice-over on landscapes, buildings and other b-roll.', c: '#62743f', light: false }
+  ];
+  var values = CATS.map(function () { return 0; });
+  var frame = document.getElementById('frame');
+  var rowsEl = document.getElementById('rows');
+  var totalEl = document.getElementById('total');
+
+  function sum() { return values.reduce(function (a, b) { return a + b; }, 0); }
+  function fmtMin(p) {
+    var m = RUNTIME * p / 100, mm = Math.floor(m), ss = Math.round((m - mm) * 60);
+    if (ss === 60) { mm += 1; ss = 0; }
+    return '≈ ' + mm + ':' + (ss < 10 ? '0' : '') + ss + ' min';
+  }
+
+  CATS.forEach(function (cat, i) {
+    var row = document.createElement('div');
+    row.className = 'row'; row.style.setProperty('--c', cat.c);
+    row.innerHTML =
+      '<div class="lab"><b></b><span></span></div>' +
+      '<div class="slide">' +
+        '<div class="rail"><div class="fill"></div></div>' +
+        '<input type="range" min="0" max="100" step="1" value="0">' +
+      '</div>' +
+      '<div class="val"><div class="n">0<i>%</i></div><div class="m"></div></div>';
+    row.querySelector('.lab b').textContent = cat.name;
+    row.querySelector('.lab span').textContent = cat.hint;
+    var input = row.querySelector('input');
+    input.setAttribute('aria-label', cat.name + ', percent of running time');
+    input.addEventListener('input', function () {
+      var others = sum() - values[i];
+      var v = parseInt(input.value, 10) || 0;
+      var cap = 100 - others;
+      if (v > cap) { v = cap; input.value = cap; }
+      values[i] = v;
+      update();
+    });
+    cat.row = row; cat.input = input;
+    rowsEl.appendChild(row);
+  });
+
+  function update() {
+    var s = sum(), free = 100 - s;
+    var html = '', W = frame.clientWidth || 600;
+    function lab(v) { var px = W * v / 100; return (px >= 100 ? '' : ' small') + (px >= 52 ? '' : ' tiny') + (px >= 30 ? '' : ' hide'); }
+    CATS.forEach(function (cat, i) {
+      var v = values[i]; if (v <= 0) return;
+      html += '<div class="seg' + (cat.light ? ' dark' : '') + lab(v) + '" style="flex:' + v + ' 1 0;background:' + cat.c + '"><span class="pct">' + v + '%</span><span class="nm">' + cat.name + '</span></div>';
+    });
+    if (free > 0) {
+      html += '<div class="seg free' + lab(free) + '" style="flex:' + free + ' 1 0"><span class="pct">' + free + '%</span><span class="nm">still free</span></div>';
+    }
+    frame.innerHTML = html;
+
+    CATS.forEach(function (cat, i) {
+      var v = values[i], row = cat.row;
+      row.querySelector('.fill').style.width = v + '%';
+      row.querySelector('.n').innerHTML = v + '<i>%</i>';
+      row.querySelector('.m').textContent = fmtMin(v);
+      cat.input.setAttribute('aria-valuetext', v + ' percent');
+    });
+
+    totalEl.className = 'total' + (free === 0 ? ' full' : '');
+    totalEl.innerHTML = s + ' % of 100 % used<small>' + (free === 0 ? 'All distributed' : free + ' % still free') + '</small>';
+  }
+
+  document.getElementById('reset').addEventListener('click', function () {
+    values = CATS.map(function () { return 0; });
+    CATS.forEach(function (c) { c.input.value = 0; });
+    update();
+  });
+  window.addEventListener('resize', update);
+  update();
+})();
+</script>
+</body>
+</html>
